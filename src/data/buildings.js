@@ -1,0 +1,95 @@
+export const buildings = [
+  // Ancient Era
+  { id: 'barracks', name: 'Barracks', cost: 50, tech: null, effects: ['+3 Experience for new units'], category: 'Military' },
+  { id: 'granary', name: 'Granary', cost: 60, tech: 'Pottery', effects: ['Stores half food after growth', '+1 Health from grain'], category: 'Food' },
+  { id: 'library', name: 'Library', cost: 90, tech: 'Writing', effects: ['+2 Culture', '+25% Science', 'Trains Scientists'], category: 'Science' },
+  { id: 'lighthouse', name: 'Lighthouse', cost: 60, tech: 'Sailing', effects: ['+1 Food on water tiles'], category: 'Food' },
+  { id: 'monument', name: 'Monument', cost: 30, tech: 'Mysticism', effects: ['+1 Culture'], category: 'Culture' },
+  { id: 'temple', name: 'Temple', cost: 80, tech: 'Priesthood', effects: ['+1 Culture', '+1 Happiness', 'Trains Priests'], category: 'Culture' },
+  { id: 'walls', name: 'Walls', cost: 50, tech: 'Masonry', effects: ['+50% City defense (obsolete with Rifling)'], category: 'Military' },
+
+  // Classical Era
+  { id: 'aqueduct', name: 'Aqueduct', cost: 100, tech: 'Masonry', effects: ['+2 Health'], category: 'Health' },
+  { id: 'colosseum', name: 'Colosseum', cost: 80, tech: 'Construction', effects: ['+1 Happiness', '+1 Culture'], category: 'Happiness' },
+  { id: 'courthouse', name: 'Courthouse', cost: 120, tech: 'Code of Laws', effects: ['+2 Espionage', '-50% Maintenance', 'Trains Spies'], category: 'Gold' },
+  { id: 'forge', name: 'Forge', cost: 120, tech: 'Metal Casting', effects: ['+25% Production', '+1 Unhealthiness', 'Trains Engineers'], category: 'Production' },
+  { id: 'harbor', name: 'Harbor', cost: 80, tech: 'Compass', effects: ['+50% trade route yield'], category: 'Gold' },
+  { id: 'market', name: 'Market', cost: 150, tech: 'Currency', effects: ['+25% Gold', 'Trains Merchants'], category: 'Gold' },
+  { id: 'stable', name: 'Stable', cost: 60, tech: 'Horseback Riding', effects: ['+2 Experience for mounted units'], category: 'Military' },
+  { id: 'theatre', name: 'Theatre', cost: 50, tech: 'Drama', effects: ['+3 Culture', 'Trains Artists'], category: 'Culture' },
+
+  // Medieval Era
+  { id: 'bank', name: 'Bank', cost: 200, tech: 'Banking', effects: ['+50% Gold'], category: 'Gold' },
+  { id: 'castle', name: 'Castle', cost: 100, tech: 'Engineering', effects: ['+2 Culture', '+2 Espionage', '+1 Trade Route', '+25% Defense'], category: 'Military' },
+  { id: 'cathedral', name: 'Cathedral', cost: 300, tech: 'Music', effects: ['+50% Culture', '+2 Happiness if state religion'], category: 'Culture' },
+  { id: 'grocer', name: 'Grocer', cost: 150, tech: 'Guilds', effects: ['+1 Health from food resources', '+25% Gold'], category: 'Gold' },
+  { id: 'monastery', name: 'Monastery', cost: 40, tech: 'Meditation', effects: ['+2 Culture', '+10% Science'], category: 'Science' },
+
+  // Renaissance Era
+  { id: 'customs_house', name: 'Customs House', cost: 180, tech: 'Economics', effects: ['+100% Commerce from intercontinental trade'], category: 'Gold' },
+  { id: 'jail', name: 'Jail', cost: 120, tech: 'Constitution', effects: ['+4 Espionage', '-25% War weariness', 'Trains Spies'], category: 'Happiness' },
+  { id: 'observatory', name: 'Observatory', cost: 150, tech: 'Astronomy', effects: ['+25% Science', 'Trains Scientists'], category: 'Science' },
+  { id: 'security_bureau', name: 'Security Bureau', cost: 220, tech: 'Democracy', effects: ['+8 Espionage', '+50% Defensive Espionage'], category: 'Gold' },
+  { id: 'university', name: 'University', cost: 200, tech: 'Education', effects: ['+3 Culture', '+25% Science'], category: 'Science' },
+
+  // Industrial Era
+  { id: 'factory', name: 'Factory', cost: 250, tech: 'Assembly Line', effects: ['+25% Production (more with Power)', 'Trains Engineers'], category: 'Production' },
+  { id: 'hospital', name: 'Hospital', cost: 200, tech: 'Medicine', effects: ['+3 Health', '+50% Healing rate'], category: 'Health' },
+  { id: 'coal_plant', name: 'Coal Plant', cost: 200, tech: 'Assembly Line', effects: ['+50% Production', '+2 Unhealthiness'], category: 'Production' },
+  { id: 'nuclear_plant', name: 'Nuclear Plant', cost: 250, tech: 'Fission', effects: ['+75% Production', 'Requires Uranium'], category: 'Production' },
+  { id: 'drydock', name: 'Drydock', cost: 120, tech: 'Steel', effects: ['+50% Naval unit production'], category: 'Military' },
+  { id: 'levee', name: 'Levee', cost: 180, tech: 'Steam Power', effects: ['+1 Production from water tiles'], category: 'Production' },
+
+  // Modern Era
+  { id: 'airport', name: 'Airport', cost: 250, tech: 'Flight', effects: ['Airlift capability', '+3 XP for air units', '+1 Trade route'], category: 'Military' },
+  { id: 'laboratory', name: 'Laboratory', cost: 250, tech: 'Computers', effects: ['+25% Science', '+50% Spaceship production'], category: 'Science' },
+  { id: 'broadcast_tower', name: 'Broadcast Tower', cost: 200, tech: 'Mass Media', effects: ['+50% Culture'], category: 'Culture' },
+  { id: 'recycling_center', name: 'Recycling Center', cost: 300, tech: 'Ecology', effects: ['+3 Health'], category: 'Health' },
+  { id: 'supermarket', name: 'Supermarket', cost: 200, tech: 'Refrigeration', effects: ['+1 Food from farms'], category: 'Food' },
+  { id: 'hydro_plant', name: 'Hydro Plant', cost: 250, tech: 'Plastics', effects: ['+100% Production', 'Requires River'], category: 'Production' },
+  { id: 'sdi', name: 'SDI', cost: 300, tech: 'Laser', effects: ['75% Chance to intercept nukes'], category: 'Military' },
+
+  // Special Buildings
+  { id: 'palace', name: 'Palace', cost: 0, tech: null, effects: ['+8 Culture', '+4 Espionage', 'No Maintenance', 'Capital'], category: 'Special' },
+  { id: 'heroic_epic', name: 'Heroic Epic', cost: 300, tech: 'Literature', effects: ['+100% Military unit production', 'National Wonder'], category: 'Military' },
+  { id: 'national_epic', name: 'National Epic', cost: 300, tech: 'Literature', effects: ['+100% Great Person generation', 'National Wonder'], category: 'Special' },
+  { id: 'oxford_university', name: 'Oxford University', cost: 500, tech: 'Education', effects: ['+100% Science', '+2 Free Scientists', 'National Wonder'], category: 'Science' },
+  { id: 'wall_street', name: 'Wall Street', cost: 600, tech: 'Corporation', effects: ['+100% Gold', 'National Wonder'], category: 'Gold' },
+  { id: 'pentagon', name: 'Pentagon', cost: 750, tech: 'Assembly Line', effects: ['+2 Experience for all units', 'National Wonder'], category: 'Military' },
+
+  // Unique Buildings
+  { id: 'mall', name: 'Mall', cost: 200, tech: 'Refrigeration', effects: ['+1 Food from farms', '+20% Gold'], category: 'Unique - Food', civilization: 'America', replaces: 'Supermarket', isUnique: true },
+  { id: 'madrassa', name: 'Madrassa', cost: 90, tech: 'Writing', effects: ['+2 Culture', '+25% Science', 'Trains Priests'], category: 'Unique - Science', civilization: 'Arabia', replaces: 'Library', isUnique: true },
+  { id: 'sacrificial_altar', name: 'Sacrificial Altar', cost: 80, tech: 'Priesthood', effects: ['+1 Culture', '+1 Happiness', '+1 Gold per population'], category: 'Unique - Culture', civilization: 'Aztec', replaces: 'Temple', isUnique: true },
+  { id: 'garden', name: 'Garden', cost: 120, tech: 'Metal Casting', effects: ['+25% Production', 'Trains Engineers', '+25% Great Person generation'], category: 'Unique - Production', civilization: 'Babylon', replaces: 'Forge', isUnique: true },
+  { id: 'hippodrome', name: 'Hippodrome', cost: 80, tech: 'Construction', effects: ['+1 Happiness', '+1 Culture', '+2 Espionage'], category: 'Unique - Happiness', civilization: 'Byzantine', replaces: 'Colosseum', isUnique: true },
+  { id: 'cothon', name: 'Cothon', cost: 80, tech: 'Compass', effects: ['+50% trade route yield', '+1 Trade Route'], category: 'Unique - Gold', civilization: 'Carthage', replaces: 'Harbor', isUnique: true },
+  { id: 'dun', name: 'Dun', cost: 50, tech: 'Masonry', effects: ['+50% City defense', '+1 Espionage'], category: 'Unique - Military', civilization: 'Celts', replaces: 'Walls', isUnique: true },
+  { id: 'pavilion', name: 'Pavilion', cost: 50, tech: 'Drama', effects: ['+3 Culture', 'Trains Artists', '+1 Happiness'], category: 'Unique - Culture', civilization: 'China', replaces: 'Theatre', isUnique: true },
+  { id: 'dike', name: 'Dike', cost: 60, tech: 'Sailing', effects: ['+1 Food on water tiles', '+1 Commerce on water tiles'], category: 'Unique - Food', civilization: 'Dutch', replaces: 'Lighthouse', isUnique: true },
+  { id: 'obelisk', name: 'Obelisk', cost: 30, tech: 'Mysticism', effects: ['+1 Culture', '+2 Priest specialists'], category: 'Unique - Culture', civilization: 'Egypt', replaces: 'Monument', isUnique: true },
+  { id: 'stock_exchange', name: 'Stock Exchange', cost: 150, tech: 'Currency', effects: ['+25% Gold', 'Trains Merchants', '+1 Trade Route'], category: 'Unique - Gold', civilization: 'England', replaces: 'Market', isUnique: true },
+  { id: 'stele', name: 'Stele', cost: 30, tech: 'Mysticism', effects: ['+1 Culture', '+2 Culture'], category: 'Unique - Culture', civilization: 'Ethiopia', replaces: 'Monument', isUnique: true },
+  { id: 'salon', name: 'Salon', cost: 50, tech: 'Drama', effects: ['+3 Culture', 'Trains Artists', '+1 Happiness from wine'], category: 'Unique - Culture', civilization: 'France', replaces: 'Theatre', isUnique: true },
+  { id: 'assembly_plant', name: 'Assembly Plant', cost: 250, tech: 'Assembly Line', effects: ['+25% Production (more with Power)', 'Trains Engineers', '+1 Production'], category: 'Unique - Production', civilization: 'Germany', replaces: 'Factory', isUnique: true },
+  { id: 'odeon', name: 'Odeon', cost: 50, tech: 'Drama', effects: ['+3 Culture', 'Trains Artists', '+2 Experience for air units'], category: 'Unique - Culture', civilization: 'Greece', replaces: 'Theatre', isUnique: true },
+  { id: 'rathaus', name: 'Rathaus', cost: 120, tech: 'Code of Laws', effects: ['+2 Espionage', '-50% Maintenance', 'Trains Spies', '-25% additional Maintenance'], category: 'Unique - Gold', civilization: 'Holy Roman Empire', replaces: 'Courthouse', isUnique: true },
+  { id: 'mausoleum', name: 'Mausoleum', cost: 80, tech: 'Priesthood', effects: ['+1 Culture', '+1 Happiness', 'Trains Priests', '+1 Great Prophet chance'], category: 'Unique - Culture', civilization: 'India', replaces: 'Temple', isUnique: true },
+  { id: 'terrace', name: 'Terrace', cost: 60, tech: 'Pottery', effects: ['Stores half food after growth', '+1 Health from grain', '+1 Culture'], category: 'Unique - Food', civilization: 'Incan Empire', replaces: 'Granary', isUnique: true },
+  { id: 'shale_plant', name: 'Shale Plant', cost: 200, tech: 'Assembly Line', effects: ['+50% Production', 'No Unhealthiness'], category: 'Unique - Production', civilization: 'Japan', replaces: 'Coal Plant', isUnique: true },
+  { id: 'baray', name: 'Baray', cost: 100, tech: 'Masonry', effects: ['+2 Health', '+1 Food'], category: 'Unique - Health', civilization: 'Khmer', replaces: 'Aqueduct', isUnique: true },
+  { id: 'seowon', name: 'Seowon', cost: 200, tech: 'Education', effects: ['+3 Culture', '+25% Science', '+1 Great Scientist chance'], category: 'Unique - Science', civilization: 'Korea', replaces: 'University', isUnique: true },
+  { id: 'mint', name: 'Mint', cost: 120, tech: 'Metal Casting', effects: ['+25% Production', '+1 Unhealthiness', 'Trains Engineers', '+1 Gold from gold/silver/gems'], category: 'Unique - Production', civilization: 'Mali', replaces: 'Forge', isUnique: true },
+  { id: 'ball_court', name: 'Ball Court', cost: 80, tech: 'Construction', effects: ['+1 Happiness', '+1 Culture', '+2 Happiness from dye and incense'], category: 'Unique - Happiness', civilization: 'Maya', replaces: 'Colosseum', isUnique: true },
+  { id: 'ger', name: 'Ger', cost: 50, tech: 'Horseback Riding', effects: ['+2 Experience for mounted units', '+3 Experience for gunpowder units'], category: 'Unique - Military', civilization: 'Mongolia', replaces: 'Stable', isUnique: true },
+  { id: 'totem_pole', name: 'Totem Pole', cost: 30, tech: 'Mysticism', effects: ['+1 Culture', '+1 Experience for archery units'], category: 'Unique - Culture', civilization: 'Native America', replaces: 'Monument', isUnique: true },
+  { id: 'hammam', name: 'Hammam', cost: 100, tech: 'Masonry', effects: ['+2 Health', '+1 Happiness'], category: 'Unique - Health', civilization: 'Ottoman Empire', replaces: 'Aqueduct', isUnique: true },
+  { id: 'apothecary', name: 'Apothecary', cost: 150, tech: 'Guilds', effects: ['+1 Health from food resources', '+25% Gold', '+1 Health'], category: 'Unique - Gold', civilization: 'Persia', replaces: 'Grocer', isUnique: true },
+  { id: 'feitoria', name: 'Feitoria', cost: 180, tech: 'Economics', effects: ['+100% Commerce from intercontinental trade', '+1 Free Merchant'], category: 'Unique - Gold', civilization: 'Portugal', replaces: 'Customs House', isUnique: true },
+  { id: 'forum', name: 'Forum', cost: 150, tech: 'Currency', effects: ['+25% Gold', 'Trains Merchants', '+2 Culture'], category: 'Unique - Gold', civilization: 'Rome', replaces: 'Market', isUnique: true },
+  { id: 'research_institute', name: 'Research Institute', cost: 250, tech: 'Computers', effects: ['+25% Science', '+50% Spaceship production', '+2 Free Scientists'], category: 'Unique - Science', civilization: 'Russia', replaces: 'Laboratory', isUnique: true },
+  { id: 'citadel', name: 'Citadel', cost: 100, tech: 'Engineering', effects: ['+2 Culture', '+2 Espionage', '+1 Trade Route', '+25% Defense', '+1 Free Spy'], category: 'Unique - Military', civilization: 'Spain', replaces: 'Castle', isUnique: true },
+  { id: 'ziggurat', name: 'Ziggurat', cost: 120, tech: 'Code of Laws', effects: ['+2 Espionage', '-50% Maintenance', 'Trains Spies', '+1 Great Prophet chance'], category: 'Unique - Gold', civilization: 'Sumeria', replaces: 'Courthouse', isUnique: true },
+  { id: 'trading_post', name: 'Trading Post', cost: 150, tech: 'Currency', effects: ['+25% Gold', 'Trains Merchants', '+1 Commerce on water tiles'], category: 'Unique - Gold', civilization: 'Vikings', replaces: 'Market', isUnique: true },
+  { id: 'ikhanda', name: 'Ikhanda', cost: 40, tech: null, effects: ['+3 Experience for new units', '+2 Culture'], category: 'Unique - Military', civilization: 'Zulu', replaces: 'Barracks', isUnique: true }
+];

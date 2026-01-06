@@ -1,0 +1,58 @@
+.main-menu {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: #fff;
+}
+
+.main-menu-container {
+  text-align: center;
+  padding: 40px;
+}
+
+.game-title {
+  font-size: 3.5rem;
+  margin-bottom: 60px;
+  font-family: 'Georgia', serif;
+  text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7);
+  color: #f0d98f;
+  letter-spacing: 2px;
+}
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+}
+
+.menu-button {
+  width: 300px;
+  padding: 18px 40px;
+  font-size: 1.4rem;
+  font-family: 'Georgia', serif;
+  background: linear-gradient(to bottom, #8b7355 0%, #6b5638 100%);
+  color: #f0d98f;
+  border: 3px solid #d4af37;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.menu-button:hover {
+  background: linear-gradient(to bottom, #a08968 0%, #7d6645 100%);
+  border-color: #ffd700;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.7);
+}
+
+.menu-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
