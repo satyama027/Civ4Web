@@ -46,9 +46,10 @@
   overflow: hidden;
 }
 
-.sidebar {
-  width: 300px;
-  background: rgba(0, 0, 0, 0.4);
+/* Left Sidebar - Categories Only */
+.category-sidebar {
+  width: 200px;
+  background: rgba(0, 0, 0, 0.5);
   border-right: 2px solid #d4af37;
   display: flex;
   flex-direction: column;
@@ -60,7 +61,30 @@
   flex-direction: column;
   padding: 10px;
   gap: 8px;
-  border-bottom: 2px solid #d4af37;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Middle Sidebar - Items List */
+.items-sidebar {
+  width: 280px;
+  background: rgba(0, 0, 0, 0.4);
+  border-right: 2px solid #d4af37;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    width: 0;
+    opacity: 0;
+  }
+  to {
+    width: 280px;
+    opacity: 1;
+  }
 }
 
 .category-button {
@@ -264,22 +288,26 @@
 }
 
 /* Scrollbar styling */
+.category-nav::-webkit-scrollbar,
 .item-list::-webkit-scrollbar,
 .main-content::-webkit-scrollbar {
   width: 10px;
 }
 
+.category-nav::-webkit-scrollbar-track,
 .item-list::-webkit-scrollbar-track,
 .main-content::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.3);
 }
 
+.category-nav::-webkit-scrollbar-thumb,
 .item-list::-webkit-scrollbar-thumb,
 .main-content::-webkit-scrollbar-thumb {
   background: #8b7355;
   border-radius: 5px;
 }
 
+.category-nav::-webkit-scrollbar-thumb:hover,
 .item-list::-webkit-scrollbar-thumb:hover,
 .main-content::-webkit-scrollbar-thumb:hover {
   background: #d4af37;
@@ -332,4 +360,75 @@
   color: #f0d98f;
   line-height: 1.6;
   margin: 0;
+}
+
+/* Yield display styling */
+.yield-header {
+  margin-bottom: 30px;
+}
+
+.yield-header h2 {
+  margin-bottom: 20px;
+}
+
+.yield-image-container {
+  width: 100%;
+  max-width: 400px;
+  margin: 20px auto;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  border: 3px solid #d4af37;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.yield-image-container svg {
+  width: 100%;
+  height: auto;
+  max-width: 300px;
+  display: block;
+}
+
+.yield-image {
+  width: 100%;
+  height: 400px;
+  object-fit: cover;
+  display: block;
+}
+
+.yield-description {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: #f0d98f;
+  margin-bottom: 25px;
+  padding: 20px;
+  background: rgba(139, 115, 85, 0.2);
+  border-radius: 8px;
+  border-left: 4px solid #ffd700;
+}
+
+.yield-list {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 25px;
+}
+
+.yield-list li {
+  padding: 12px 15px;
+  margin-bottom: 8px;
+  background: rgba(139, 115, 85, 0.2);
+  border-left: 3px solid #d4af37;
+  border-radius: 4px;
+  color: #f0d98f;
+  line-height: 1.6;
+  transition: all 0.3s ease;
+}
+
+.yield-list li:hover {
+  background: rgba(139, 115, 85, 0.4);
+  border-left-color: #ffd700;
+  transform: translateX(5px);
 }

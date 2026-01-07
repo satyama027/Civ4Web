@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { yields } from '../data/yields';
+import { resources } from '../data/resources';
+import { terrainTypes } from '../data/terrainTypes';
+import { improvements } from '../data/improvements';
 import { units } from '../data/units';
 import { technologies } from '../data/technologies';
 import { buildings } from '../data/buildings';
@@ -9,11 +13,15 @@ import '../styles/Civilopedia.css';
 
 const Civilopedia = () => {
   const navigate = useNavigate();
-  const [selectedCategory, setSelectedCategory] = useState('units');
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const categories = [
+    { id: 'yields', name: 'Yields', data: yields },
+    { id: 'resources', name: 'Resources', data: resources },
+    { id: 'terrain', name: 'Terrain Types', data: terrainTypes },
+    { id: 'improvements', name: 'Improvements', data: improvements },
     { id: 'units', name: 'Units', data: units },
     { id: 'technologies', name: 'Technologies', data: technologies },
     { id: 'buildings', name: 'Buildings', data: buildings },
@@ -30,10 +38,16 @@ const Civilopedia = () => {
     }
   };
 
-  const currentCategory = categories.find(c => c.id === selectedCategory);
-  const filteredData = currentCategory.data.filter(item =>
+  const handleCategoryClick = (categoryId) => {
+    setSelectedCategory(categoryId);
+    setSelectedItem(null);
+    setSearchTerm('');
+  };
+
+  const currentCategory = selectedCategory ? categories.find(c => c.id === selectedCategory) : null;
+  const filteredData = currentCategory ? currentCategory.data.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ) : [];
 
   const renderUnitDetails = (unit) => (
     <div className="item-details">
@@ -222,10 +236,245 @@ const Civilopedia = () => {
     </div>
   );
 
+  const renderYieldDetails = (yield_item) => (
+    <div className="item-details">
+      <div className="yield-header">
+        <h2>{yield_item.icon} {yield_item.name}</h2>
+        {yield_item.svgIcon && (
+          <div className="yield-image-container" dangerouslySetInnerHTML={{ __html: yield_item.svgIcon }} />
+        )}
+      </div>
+      <div className="description">
+        <p className="yield-description">{yield_item.description}</p>
+
+        <h3>Sources</h3>
+        <ul className="yield-list">
+          {yield_item.sources.map((source, idx) => (
+            <li key={idx}>{source}</li>
+          ))}
+        </ul>
+
+        <h3>Game Mechanics</h3>
+        <ul className="yield-list">
+          {yield_item.mechanics.map((mechanic, idx) => (
+            <li key={idx}>{mechanic}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+
+  const renderResourceDetails = (resource) => (
+    <div className="item-details">
+      <div className="yield-header">
+        <h2>{resource.icon} {resource.name}</h2>
+        {resource.svgIcon && (
+          <div className="yield-image-container" dangerouslySetInnerHTML={{ __html: resource.svgIcon }} />
+        )}
+      </div>
+      <div className="details-grid">
+        <div className="detail-row">
+          <span className="label">Category:</span>
+          <span className="value">{resource.category}</span>
+        </div>
+        {resource.yields && Object.keys(resource.yields).length > 0 && (
+          <div className="detail-row">
+            <span className="label">Yields:</span>
+            <span className="value">
+              {Object.entries(resource.yields).map(([type, amount]) =>
+                `+${amount} ${type.charAt(0).toUpperCase() + type.slice(1)}`
+              ).join(', ')}
+            </span>
+          </div>
+        )}
+        {resource.revealTech && (
+          <div className="detail-row">
+            <span className="label">Reveal Tech:</span>
+            <span className="value">{resource.revealTech}</span>
+          </div>
+        )}
+        {resource.connectTech && (
+          <div className="detail-row">
+            <span className="label">Connect Tech:</span>
+            <span className="value">{resource.connectTech}</span>
+          </div>
+        )}
+        {resource.happinessBonus && (
+          <div className="detail-row">
+            <span className="label">Happiness:</span>
+            <span className="value">+{resource.happinessBonus}</span>
+          </div>
+        )}
+        {resource.healthBonus && (
+          <div className="detail-row">
+            <span className="label">Health:</span>
+            <span className="value">+{resource.healthBonus}</span>
+          </div>
+        )}
+      </div>
+      <div className="description">
+        <p className="yield-description">{resource.description}</p>
+        {resource.enabledUnits && resource.enabledUnits.length > 0 && (
+          <>
+            <h3>Enabled Units</h3>
+            <ul className="yield-list">
+              {resource.enabledUnits.map((unit, idx) => (
+                <li key={idx}>{unit}</li>
+              ))}
+            </ul>
+          </>
+        )}
+        {resource.enabledBuildings && resource.enabledBuildings.length > 0 && (
+          <>
+            <h3>Enabled Buildings</h3>
+            <ul className="yield-list">
+              {resource.enabledBuildings.map((building, idx) => (
+                <li key={idx}>{building}</li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderTerrainDetails = (terrain) => (
+    <div className="item-details">
+      <div className="yield-header">
+        <h2>{terrain.icon} {terrain.name}</h2>
+        {terrain.svgIcon && (
+          <div className="yield-image-container" dangerouslySetInnerHTML={{ __html: terrain.svgIcon }} />
+        )}
+      </div>
+      <div className="details-grid">
+        <div className="detail-row">
+          <span className="label">Category:</span>
+          <span className="value">{terrain.category}</span>
+        </div>
+        {terrain.baseYields && Object.keys(terrain.baseYields).length > 0 && (
+          <div className="detail-row">
+            <span className="label">Base Yields:</span>
+            <span className="value">
+              {Object.entries(terrain.baseYields).map(([type, amount]) =>
+                `+${amount} ${type.charAt(0).toUpperCase() + type.slice(1)}`
+              ).join(', ')}
+            </span>
+          </div>
+        )}
+        <div className="detail-row">
+          <span className="label">Movement Cost:</span>
+          <span className="value">{terrain.movementCost === Infinity ? 'Impassable' : terrain.movementCost}</span>
+        </div>
+        {terrain.defenseBonus > 0 && (
+          <div className="detail-row">
+            <span className="label">Defense Bonus:</span>
+            <span className="value">+{terrain.defenseBonus}%</span>
+          </div>
+        )}
+        {terrain.healthPenalty && (
+          <div className="detail-row">
+            <span className="label">Health:</span>
+            <span className="value">{terrain.healthPenalty}</span>
+          </div>
+        )}
+      </div>
+      <div className="description">
+        <p className="yield-description">{terrain.description}</p>
+        {terrain.canBeClearedForProduction && (
+          <ul className="yield-list">
+            <li>Can be cleared for {terrain.productionFromClearing} instant production</li>
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderImprovementDetails = (improvement) => (
+    <div className="item-details">
+      <div className="yield-header">
+        <h2>{improvement.icon} {improvement.name}</h2>
+        {improvement.svgIcon && (
+          <div className="yield-image-container" dangerouslySetInnerHTML={{ __html: improvement.svgIcon }} />
+        )}
+      </div>
+      <div className="details-grid">
+        <div className="detail-row">
+          <span className="label">Category:</span>
+          <span className="value">{improvement.category}</span>
+        </div>
+        {improvement.yields && Object.keys(improvement.yields).length > 0 && (
+          <div className="detail-row">
+            <span className="label">Yields:</span>
+            <span className="value">
+              {Object.entries(improvement.yields).map(([type, amount]) =>
+                `+${amount} ${type.charAt(0).toUpperCase() + type.slice(1)}`
+              ).join(', ')}
+            </span>
+          </div>
+        )}
+        {improvement.requiredTech && (
+          <div className="detail-row">
+            <span className="label">Required Tech:</span>
+            <span className="value">{improvement.requiredTech}</span>
+          </div>
+        )}
+        {improvement.buildTime && (
+          <div className="detail-row">
+            <span className="label">Build Time:</span>
+            <span className="value">{improvement.buildTime} turns</span>
+          </div>
+        )}
+        {improvement.defenseBonus && (
+          <div className="detail-row">
+            <span className="label">Defense Bonus:</span>
+            <span className="value">+{improvement.defenseBonus}%</span>
+          </div>
+        )}
+      </div>
+      <div className="description">
+        <p className="yield-description">{improvement.description}</p>
+        {improvement.improvesResources && improvement.improvesResources.length > 0 && (
+          <>
+            <h3>Improves Resources</h3>
+            <ul className="yield-list">
+              {improvement.improvesResources.map((resource, idx) => (
+                <li key={idx}>{resource}</li>
+              ))}
+            </ul>
+          </>
+        )}
+        {improvement.bonusYieldsWithTech && (
+          <>
+            <h3>Bonus Yields</h3>
+            <ul className="yield-list">
+              {Object.entries(improvement.bonusYieldsWithTech).map(([tech, bonus], idx) => (
+                <li key={idx}>
+                  {tech}: {Object.entries(bonus)
+                    .filter(([key]) => key !== 'condition')
+                    .map(([type, amount]) => `+${amount} ${type}`)
+                    .join(', ')}
+                  {bonus.condition && ` (${bonus.condition})`}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   const renderItemDetails = (item) => {
     if (!item) return <div className="no-selection">Select an item to view details</div>;
 
     switch (selectedCategory) {
+      case 'yields':
+        return renderYieldDetails(item);
+      case 'resources':
+        return renderResourceDetails(item);
+      case 'terrain':
+        return renderTerrainDetails(item);
+      case 'improvements':
+        return renderImprovementDetails(item);
       case 'units':
         return renderUnitDetails(item);
       case 'technologies':
@@ -251,49 +500,56 @@ const Civilopedia = () => {
       </div>
 
       <div className="civilopedia-content">
-        <div className="sidebar">
+        {/* Left Sidebar - Categories */}
+        <div className="category-sidebar">
           <div className="category-nav">
             {categories.map(cat => (
               <button
                 key={cat.id}
                 className={`category-button ${selectedCategory === cat.id ? 'active' : ''}`}
-                onClick={() => {
-                  setSelectedCategory(cat.id);
-                  setSelectedItem(null);
-                  setSearchTerm('');
-                }}
+                onClick={() => handleCategoryClick(cat.id)}
               >
                 {cat.name}
               </button>
             ))}
           </div>
-
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder={`Search ${currentCategory.name}...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="item-list">
-            {filteredData.map((item, idx) => (
-              <div
-                key={idx}
-                className={`item-card ${selectedItem?.id === item.id ? 'selected' : ''}`}
-                onClick={() => setSelectedItem(item)}
-              >
-                <div className="item-name">{item.name}</div>
-                {item.category && <div className="item-subtitle">{item.category}</div>}
-                {item.era && <div className="item-subtitle">{item.era} Era</div>}
-              </div>
-            ))}
-          </div>
         </div>
 
+        {/* Middle Sidebar - Items (only shows when category is selected) */}
+        {selectedCategory && (
+          <div className="items-sidebar">
+            <div className="search-box">
+              <input
+                type="text"
+                placeholder={`Search ${currentCategory.name}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <div className="item-list">
+              {filteredData.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={`item-card ${selectedItem?.id === item.id ? 'selected' : ''}`}
+                  onClick={() => setSelectedItem(item)}
+                >
+                  <div className="item-name">{item.name}</div>
+                  {item.category && <div className="item-subtitle">{item.category}</div>}
+                  {item.era && <div className="item-subtitle">{item.era} Era</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Right Content - Item Details */}
         <div className="main-content">
-          {renderItemDetails(selectedItem)}
+          {!selectedCategory ? (
+            <div className="no-selection">Select a category from the left to begin</div>
+          ) : (
+            renderItemDetails(selectedItem)
+          )}
         </div>
       </div>
     </div>
