@@ -7,18 +7,19 @@ export const improvements = [
     icon: '🚜',
     color: '#90EE90',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#8FBC8F"/>
+      <circle cx="100" cy="100" r="95" fill="#8FBC8F" stroke="#6B8E6B" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <rect x="-60" y="-50" width="35" height="100" fill="#D2691E" opacity="0.6"/>
-        <rect x="-20" y="-50" width="35" height="100" fill="#A0522D" opacity="0.6"/>
-        <rect x="20" y="-50" width="35" height="100" fill="#D2691E" opacity="0.6"/>
-        <path d="M -70,-55 L -70,55 M -25,-55 L -25,55 M 15,-55 L 15,55 M 60,-55 L 60,55" stroke="#8B4513" stroke-width="3"/>
-        <ellipse cx="-42" cy="-30" rx="12" ry="8" fill="#FFD700" opacity="0.7"/>
-        <ellipse cx="-2" cy="-25" rx="10" ry="7" fill="#FFD700" opacity="0.7"/>
-        <ellipse cx="38" cy="-28" rx="11" ry="8" fill="#FFD700" opacity="0.7"/>
-        <ellipse cx="-42" cy="15" rx="12" ry="8" fill="#FFD700" opacity="0.7"/>
-        <ellipse cx="-2" cy="20" rx="10" ry="7" fill="#FFD700" opacity="0.7"/>
-        <ellipse cx="38" cy="18" rx="11" ry="8" fill="#FFD700" opacity="0.7"/>
+        <!-- Three wheat stalks -->
+        <rect x="-45" y="-50" width="25" height="100" fill="#D2691E" stroke="#8B4513" stroke-width="4"/>
+        <rect x="-10" y="-50" width="25" height="100" fill="#CD853F" stroke="#8B4513" stroke-width="4"/>
+        <rect x="25" y="-50" width="25" height="100" fill="#D2691E" stroke="#8B4513" stroke-width="4"/>
+        <!-- Wheat grains - bold and simplified -->
+        <ellipse cx="-32" cy="-35" rx="14" ry="20" fill="#FFD700" stroke="#DAA520" stroke-width="3"/>
+        <ellipse cx="2" cy="-30" rx="14" ry="20" fill="#FFD700" stroke="#DAA520" stroke-width="3"/>
+        <ellipse cx="37" cy="-35" rx="14" ry="20" fill="#FFD700" stroke="#DAA520" stroke-width="3"/>
+        <ellipse cx="-32" cy="10" rx="14" ry="20" fill="#FFA500" stroke="#FF8C00" stroke-width="3"/>
+        <ellipse cx="2" cy="15" rx="14" ry="20" fill="#FFA500" stroke="#FF8C00" stroke-width="3"/>
+        <ellipse cx="37" cy="10" rx="14" ry="20" fill="#FFA500" stroke="#FF8C00" stroke-width="3"/>
       </g>
     </svg>`,
     yields: {
@@ -40,16 +41,22 @@ export const improvements = [
     icon: '⛏️',
     color: '#808080',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#A0826D"/>
+      <circle cx="100" cy="100" r="95" fill="#654321" stroke="#4d3319" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <rect x="-40" y="20" width="80" height="40" fill="#654321" stroke="#4d3319" stroke-width="2"/>
-        <polygon points="-40,20 0,-20 40,20" fill="#8B4513" stroke="#654321" stroke-width="2"/>
-        <rect x="-8" y="0" width="16" height="60" fill="#2d2d2d" stroke="#1a1a1a" stroke-width="2"/>
-        <rect x="-25" y="10" width="50" height="10" fill="#A9A9A9" stroke="#696969" stroke-width="2"/>
-        <circle cx="-20" cy="40" r="6" fill="#FFD700" stroke="#DAA520" stroke-width="1.5"/>
-        <circle cx="18" cy="35" r="5" fill="#C0C0C0" stroke="#A9A9A9" stroke-width="1.5"/>
-        <polygon points="-35,-10 -25,-5 -28,0" fill="#808080" stroke="#505050" stroke-width="1"/>
-        <polygon points="30,-8 35,0 25,2" fill="#808080" stroke="#505050" stroke-width="1"/>
+        <!-- Mine entrance - bold structure -->
+        <rect x="-50" y="20" width="100" height="50" fill="#8B4513" stroke="#654321" stroke-width="5"/>
+        <polygon points="-50,20 0,-35 50,20" fill="#A0522D" stroke="#654321" stroke-width="5"/>
+        <!-- Dark entrance tunnel -->
+        <rect x="-15" y="10" width="30" height="60" fill="#1a1a1a" stroke="#000000" stroke-width="4"/>
+        <!-- Ore cart rails -->
+        <rect x="-30" y="5" width="60" height="8" fill="#696969" stroke="#505050" stroke-width="3"/>
+        <!-- Ore chunks - gold and silver -->
+        <circle cx="-25" cy="50" r="10" fill="#FFD700" stroke="#DAA520" stroke-width="3"/>
+        <circle cx="28" cy="48" r="9" fill="#C0C0C0" stroke="#A9A9A9" stroke-width="3"/>
+        <circle cx="5" cy="55" r="8" fill="#CD7F32" stroke="#8B4513" stroke-width="3"/>
+        <!-- Rock debris -->
+        <polygon points="-45,-5 -35,0 -38,8" fill="#808080" stroke="#505050" stroke-width="3"/>
+        <polygon points="40,-3 48,5 35,10" fill="#696969" stroke="#505050" stroke-width="3"/>
       </g>
     </svg>`,
     yields: {
@@ -70,14 +77,23 @@ export const improvements = [
     icon: '🏠',
     color: '#DEB887',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#8FBC8F"/>
+      <circle cx="100" cy="100" r="95" fill="#90EE90" stroke="#6B8E6B" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <rect x="-30" y="0" width="60" height="40" fill="#8B4513" stroke="#654321" stroke-width="2"/>
-        <polygon points="-35,0 0,-30 35,0" fill="#CD853F" stroke="#8B4513" stroke-width="2"/>
-        <rect x="-8" y="15" width="16" height="25" fill="#654321" stroke="#4d3319" stroke-width="1.5"/>
-        <rect x="-20" y="10" width="10" height="10" fill="#87CEEB" stroke="#4682B4" stroke-width="1.5"/>
-        <rect x="10" y="10" width="10" height="10" fill="#87CEEB" stroke="#4682B4" stroke-width="1.5"/>
-        <path d="M -5,15 L -5,22 M 5,15 L 5,22" stroke="#4d3319" stroke-width="1"/>
+        <!-- Small cottage house -->
+        <rect x="-40" y="5" width="80" height="50" fill="#8B4513" stroke="#654321" stroke-width="5"/>
+        <polygon points="-48,5 0,-40 48,5" fill="#CD853F" stroke="#8B4513" stroke-width="5"/>
+        <!-- Door -->
+        <rect x="-12" y="25" width="24" height="30" fill="#654321" stroke="#4d3319" stroke-width="4"/>
+        <!-- Windows -->
+        <rect x="-32" y="15" width="16" height="16" fill="#87CEEB" stroke="#4682B4" stroke-width="3"/>
+        <rect x="16" y="15" width="16" height="16" fill="#87CEEB" stroke="#4682B4" stroke-width="3"/>
+        <!-- Window frames -->
+        <line x1="-24" y1="15" x2="-24" y2="31" stroke="#654321" stroke-width="3"/>
+        <line x1="-32" y1="23" x2="-16" y2="23" stroke="#654321" stroke-width="3"/>
+        <line x1="24" y1="15" x2="24" y2="31" stroke="#654321" stroke-width="3"/>
+        <line x1="16" y1="23" x2="32" y2="23" stroke="#654321" stroke-width="3"/>
+        <!-- Chimney -->
+        <rect x="20" y="-30" width="12" height="35" fill="#A0522D" stroke="#8B4513" stroke-width="3"/>
       </g>
     </svg>`,
     yields: {
@@ -100,16 +116,20 @@ export const improvements = [
     icon: '🏭',
     color: '#696969',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#8FBC8F"/>
+      <circle cx="100" cy="100" r="95" fill="#505050" stroke="#2d2d2d" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <rect x="-45" y="5" width="90" height="45" fill="#696969" stroke="#505050" stroke-width="2"/>
-        <polygon points="-50,5 -30,-25 30,-25 50,5" fill="#808080" stroke="#505050" stroke-width="2"/>
-        <rect x="-35" y="15" width="25" height="30" fill="#A9A9A9" stroke="#696969" stroke-width="1.5"/>
-        <rect x="10" y="15" width="25" height="30" fill="#A9A9A9" stroke="#696969" stroke-width="1.5"/>
-        <circle cx="-8" cy="25" r="10" fill="#C0C0C0" stroke="#808080" stroke-width="2"/>
-        <circle cx="-8" cy="25" r="6" fill="#2d2d2d"/>
-        <rect x="-35" y="-15" width="10" height="15" fill="#654321" stroke="#4d3319" stroke-width="1"/>
-        <path d="M -30,-25 L -25,-35 Q -20,-40 -15,-35 L -12,-30" fill="none" stroke="#696969" stroke-width="2"/>
+        <!-- Workshop building - industrial style -->
+        <rect x="-55" y="10" width="110" height="55" fill="#696969" stroke="#505050" stroke-width="5"/>
+        <polygon points="-60,10 -35,-35 35,-35 60,10" fill="#808080" stroke="#505050" stroke-width="5"/>
+        <!-- Large factory doors -->
+        <rect x="-42" y="20" width="35" height="40" fill="#A9A9A9" stroke="#696969" stroke-width="4"/>
+        <rect x="7" y="20" width="35" height="40" fill="#A9A9A9" stroke="#696969" stroke-width="4"/>
+        <!-- Gear/cog wheel -->
+        <circle cx="-15" cy="35" r="15" fill="#C0C0C0" stroke="#808080" stroke-width="4"/>
+        <circle cx="-15" cy="35" r="8" fill="#2d2d2d" stroke="#000000" stroke-width="3"/>
+        <!-- Chimney with smoke -->
+        <rect x="-42" y="-20" width="15" height="25" fill="#654321" stroke="#4d3319" stroke-width="3"/>
+        <path d="M -34,-35 L -30,-48 Q -25,-55 -20,-48 L -18,-40" fill="none" stroke="#808080" stroke-width="4" opacity="0.7"/>
       </g>
     </svg>`,
     yields: {
@@ -130,15 +150,20 @@ export const improvements = [
     icon: '🌬️',
     color: '#87CEEB',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#D2B48C"/>
+      <circle cx="100" cy="100" r="95" fill="#D2B48C" stroke="#A0826D" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <rect x="-8" y="-20" width="16" height="70" fill="#A0522D" stroke="#8B4513" stroke-width="2"/>
-        <rect x="-12" y="48" width="24" height="20" fill="#654321" stroke="#4d3319" stroke-width="2"/>
-        <circle cx="0" cy="-20" r="12" fill="#696969" stroke="#505050" stroke-width="2"/>
-        <path d="M 0,-20 L -5,-60 L 5,-60 Z" fill="#F5F5F5" stroke="#D3D3D3" stroke-width="2"/>
-        <path d="M 0,-20 L 35,-10 L 30,0 Z" fill="#E8E8E8" stroke="#D3D3D3" stroke-width="2"/>
-        <path d="M 0,-20 L 5,20 L -5,20 Z" fill="#F5F5F5" stroke="#D3D3D3" stroke-width="2"/>
-        <path d="M 0,-20 L -35,-10 L -30,0 Z" fill="#E8E8E8" stroke="#D3D3D3" stroke-width="2"/>
+        <!-- Windmill tower - bold and sturdy -->
+        <rect x="-12" y="-10" width="24" height="75" fill="#A0522D" stroke="#8B4513" stroke-width="5"/>
+        <rect x="-18" y="63" width="36" height="25" fill="#654321" stroke="#4d3319" stroke-width="4"/>
+        <!-- Central hub -->
+        <circle cx="0" cy="-10" r="18" fill="#696969" stroke="#505050" stroke-width="5"/>
+        <!-- Four windmill blades - bold triangular shapes -->
+        <path d="M 0,-10 L -8,-75 L 8,-75 Z" fill="#F5F5F5" stroke="#D3D3D3" stroke-width="5"/>
+        <path d="M 0,-10 L 50,5 L 45,20 Z" fill="#E8E8E8" stroke="#C0C0C0" stroke-width="5"/>
+        <path d="M 0,-10 L 8,55 L -8,55 Z" fill="#F5F5F5" stroke="#D3D3D3" stroke-width="5"/>
+        <path d="M 0,-10 L -50,5 L -45,20 Z" fill="#E8E8E8" stroke="#C0C0C0" stroke-width="5"/>
+        <!-- Center pin -->
+        <circle cx="0" cy="-10" r="8" fill="#2d2d2d" stroke="#000000" stroke-width="3"/>
       </g>
     </svg>`,
     yields: {
@@ -160,15 +185,24 @@ export const improvements = [
     icon: '💧',
     color: '#4682B4',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#90EE90"/>
+      <circle cx="100" cy="100" r="95" fill="#87CEEB" stroke="#4682B4" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <path d="M -60,30 Q -40,25 -20,30 Q 0,35 20,30 Q 40,25 60,30" fill="none" stroke="#4682B4" stroke-width="4" opacity="0.7"/>
-        <rect x="-25" y="-30" width="50" height="60" fill="#8B4513" stroke="#654321" stroke-width="2"/>
-        <circle cx="0" cy="0" r="20" fill="#696969" stroke="#505050" stroke-width="2"/>
-        <rect x="-3" y="-30" width="6" height="60" fill="#A0522D"/>
-        <rect x="-30" y="-3" width="60" height="6" fill="#A0522D"/>
-        <rect x="-22" y="-22" width="44" height="44" transform="rotate(45 0 0)" fill="none" stroke="#654321" stroke-width="2"/>
-        <polygon points="-50,30 -40,50 40,50 50,30" fill="#654321" stroke="#4d3319" stroke-width="2"/>
+        <!-- Water waves at bottom -->
+        <path d="M -70,40 Q -50,30 -30,40 Q -10,50 10,40 Q 30,30 50,40 Q 70,50 90,40" fill="none" stroke="#4169E1" stroke-width="5"/>
+        <path d="M -70,55 Q -50,45 -30,55 Q -10,65 10,55 Q 30,45 50,55 Q 70,65 90,55" fill="none" stroke="#1E90FF" stroke-width="5"/>
+        <!-- Mill building -->
+        <rect x="-35" y="-25" width="70" height="70" fill="#8B4513" stroke="#654321" stroke-width="5"/>
+        <!-- Water wheel - large and bold -->
+        <circle cx="0" cy="10" r="28" fill="#696969" stroke="#505050" stroke-width="5"/>
+        <!-- Wheel spokes -->
+        <line x1="-28" y1="10" x2="28" y2="10" stroke="#A0522D" stroke-width="5"/>
+        <line x1="0" y1="-18" x2="0" y2="38" stroke="#A0522D" stroke-width="5"/>
+        <line x1="-20" y1="-10" x2="20" y2="30" stroke="#A0522D" stroke-width="5"/>
+        <line x1="-20" y1="30" x2="20" y2="-10" stroke="#A0522D" stroke-width="5"/>
+        <!-- Center hub -->
+        <circle cx="0" cy="10" r="10" fill="#2d2d2d" stroke="#000000" stroke-width="4"/>
+        <!-- Building foundation -->
+        <polygon points="-60,43 -45,60 45,60 60,43" fill="#654321" stroke="#4d3319" stroke-width="4"/>
       </g>
     </svg>`,
     yields: {
@@ -193,19 +227,22 @@ export const improvements = [
     icon: '🐄',
     color: '#90EE90',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#90EE90"/>
+      <circle cx="100" cy="100" r="95" fill="#90EE90" stroke="#6B8E6B" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <rect x="-60" y="-40" width="120" height="2" fill="#8B4513"/>
-        <rect x="-60" y="-15" width="120" height="2" fill="#8B4513"/>
-        <rect x="-60" y="10" width="120" height="2" fill="#8B4513"/>
-        <rect x="-60" y="35" width="120" height="2" fill="#8B4513"/>
-        <rect x="-60" y="-40" width="2" height="77" fill="#654321"/>
-        <rect x="-30" y="-40" width="2" height="77" fill="#654321"/>
-        <rect x="0" y="-40" width="2" height="77" fill="#654321"/>
-        <rect x="30" y="-40" width="2" height="77" fill="#654321"/>
-        <rect x="58" y="-40" width="2" height="77" fill="#654321"/>
-        <ellipse cx="-20" cy="-5" rx="12" ry="10" fill="#F5DEB3" stroke="#D2B48C" stroke-width="1.5"/>
-        <ellipse cx="25" cy="0" rx="10" ry="8" fill="#FFB6C1" stroke="#FF69B4" stroke-width="1.5"/>
+        <!-- Wooden fence - bold posts and rails -->
+        <rect x="-70" y="-45" width="140" height="5" fill="#8B4513" stroke="#654321" stroke-width="3"/>
+        <rect x="-70" y="-15" width="140" height="5" fill="#8B4513" stroke="#654321" stroke-width="3"/>
+        <rect x="-70" y="15" width="140" height="5" fill="#8B4513" stroke="#654321" stroke-width="3"/>
+        <rect x="-70" y="45" width="140" height="5" fill="#8B4513" stroke="#654321" stroke-width="3"/>
+        <!-- Fence posts -->
+        <rect x="-70" y="-45" width="6" height="95" fill="#654321" stroke="#4d3319" stroke-width="3"/>
+        <rect x="-35" y="-45" width="6" height="95" fill="#654321" stroke="#4d3319" stroke-width="3"/>
+        <rect x="-3" y="-45" width="6" height="95" fill="#654321" stroke="#4d3319" stroke-width="3"/>
+        <rect x="32" y="-45" width="6" height="95" fill="#654321" stroke="#4d3319" stroke-width="3"/>
+        <rect x="64" y="-45" width="6" height="95" fill="#654321" stroke="#4d3319" stroke-width="3"/>
+        <!-- Animals - simplified and bold -->
+        <ellipse cx="-25" cy="-5" rx="16" ry="14" fill="#F5DEB3" stroke="#D2B48C" stroke-width="4"/>
+        <ellipse cx="30" cy="5" rx="14" ry="12" fill="#FFDAB9" stroke="#DEB887" stroke-width="4"/>
       </g>
     </svg>`,
     yields: {
@@ -224,17 +261,20 @@ export const improvements = [
     icon: '🌴',
     color: '#228B22',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#8FBC8F"/>
+      <circle cx="100" cy="100" r="95" fill="#8FBC8F" stroke="#6B8E6B" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <rect x="-8" y="20" width="16" height="35" fill="#8B4513" stroke="#654321" stroke-width="2"/>
-        <ellipse cx="-25" cy="-20" rx="15" ry="30" fill="#228B22" stroke="#006400" stroke-width="2"/>
-        <ellipse cx="20" cy="-25" rx="18" ry="32" fill="#2E8B57" stroke="#006400" stroke-width="2"/>
-        <ellipse cx="-10" cy="-35" rx="12" ry="25" fill="#3CB371" stroke="#006400" stroke-width="2"/>
-        <ellipse cx="10" cy="-30" rx="14" ry="28" fill="#228B22" stroke="#006400" stroke-width="2"/>
-        <rect x="-40" y="50" width="15" height="10" fill="#D2691E" opacity="0.6"/>
-        <rect x="-20" y="50" width="15" height="10" fill="#A0522D" opacity="0.6"/>
-        <rect x="5" y="50" width="15" height="10" fill="#D2691E" opacity="0.6"/>
-        <rect x="25" y="50" width="15" height="10" fill="#A0522D" opacity="0.6"/>
+        <!-- Palm tree trunk -->
+        <rect x="-12" y="20" width="24" height="45" fill="#8B4513" stroke="#654321" stroke-width="5"/>
+        <!-- Palm fronds - large and bold -->
+        <ellipse cx="-35" cy="-15" rx="20" ry="40" fill="#228B22" stroke="#006400" stroke-width="5"/>
+        <ellipse cx="30" cy="-20" rx="24" ry="42" fill="#2E8B57" stroke="#006400" stroke-width="5"/>
+        <ellipse cx="-15" cy="-40" rx="18" ry="35" fill="#3CB371" stroke="#006400" stroke-width="5"/>
+        <ellipse cx="15" cy="-35" rx="20" ry="38" fill="#228B22" stroke="#006400" stroke-width="5"/>
+        <!-- Plantation rows in background -->
+        <rect x="-50" y="55" width="20" height="12" fill="#D2691E" stroke="#A0522D" stroke-width="3"/>
+        <rect x="-25" y="55" width="20" height="12" fill="#8B4513" stroke="#654321" stroke-width="3"/>
+        <rect x="5" y="55" width="20" height="12" fill="#D2691E" stroke="#A0522D" stroke-width="3"/>
+        <rect x="30" y="55" width="20" height="12" fill="#8B4513" stroke="#654321" stroke-width="3"/>
       </g>
     </svg>`,
     yields: {
@@ -253,14 +293,21 @@ export const improvements = [
     icon: '⛺',
     color: '#8B4513',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#228B22"/>
+      <circle cx="100" cy="100" r="95" fill="#228B22" stroke="#006400" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <polygon points="0,-40 -35,30 35,30" fill="#D2691E" stroke="#8B4513" stroke-width="2"/>
-        <polygon points="0,-35 -30,27 30,27" fill="#CD853F" stroke="#8B4513" stroke-width="1.5"/>
-        <rect x="-3" y="28" width="6" height="15" fill="#654321" stroke="#4d3319" stroke-width="1"/>
-        <circle cx="-15" cy="15" r="6" fill="#DC143C" opacity="0.7"/>
-        <line x1="-15" y1="9" x2="-15" y2="21" stroke="#FFD700" stroke-width="2"/>
-        <line x1="-21" y1="15" x2="-9" y2="15" stroke="#FFD700" stroke-width="2"/>
+        <!-- Tent - bold triangular shape -->
+        <polygon points="0,-50 -50,40 50,40" fill="#D2691E" stroke="#8B4513" stroke-width="5"/>
+        <polygon points="0,-42 -42,35 42,35" fill="#CD853F" stroke="#8B4513" stroke-width="4"/>
+        <!-- Center pole -->
+        <rect x="-5" y="38" width="10" height="20" fill="#654321" stroke="#4d3319" stroke-width="3"/>
+        <!-- Campfire - bold and visible -->
+        <circle cx="-20" cy="20" r="10" fill="#DC143C" stroke="#8B0000" stroke-width="3"/>
+        <circle cx="20" cy="22" r="8" fill="#FF4500" stroke="#DC143C" stroke-width="3"/>
+        <!-- Fire flames - bold lines -->
+        <line x1="-20" y1="10" x2="-20" y2="30" stroke="#FFD700" stroke-width="4"/>
+        <line x1="-30" y1="20" x2="-10" y2="20" stroke="#FFA500" stroke-width="4"/>
+        <line x1="20" y1="14" x2="20" y2="30" stroke="#FFD700" stroke-width="4"/>
+        <line x1="12" y1="22" x2="28" y2="22" stroke="#FFA500" stroke-width="4"/>
       </g>
     </svg>`,
     yields: {
@@ -279,16 +326,23 @@ export const improvements = [
     icon: '⛵',
     color: '#4169E1',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#4682B4"/>
+      <circle cx="100" cy="100" r="95" fill="#4682B4" stroke="#1E90FF" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <path d="M -50,30 Q -30,25 -10,30 Q 10,35 30,30 Q 50,25 70,30" fill="none" stroke="#87CEEB" stroke-width="3" opacity="0.6"/>
-        <ellipse cx="0" cy="25" rx="45" ry="15" fill="#8B4513" stroke="#654321" stroke-width="2"/>
-        <path d="M -40,25 Q -35,10 -30,25" fill="#CD853F" stroke="#8B4513" stroke-width="2"/>
-        <path d="M 30,25 Q 35,10 40,25" fill="#CD853F" stroke="#8B4513" stroke-width="2"/>
-        <rect x="-3" y="-35" width="6" height="60" fill="#654321" stroke="#4d3319" stroke-width="2"/>
-        <polygon points="0,-35 30,-25 30,5" fill="#F5F5F5" stroke="#D3D3D3" stroke-width="2"/>
-        <circle cx="-20" cy="15" r="5" fill="#87CEEB" opacity="0.5"/>
-        <circle cx="15" cy="12" r="4" fill="#4682B4" opacity="0.5"/>
+        <!-- Water waves -->
+        <path d="M -70,35 Q -45,25 -20,35 Q 5,45 30,35 Q 55,25 80,35" fill="none" stroke="#87CEEB" stroke-width="5"/>
+        <path d="M -70,50 Q -45,40 -20,50 Q 5,60 30,50 Q 55,40 80,50" fill="none" stroke="#B0E0E6" stroke-width="5"/>
+        <!-- Boat hull - bold ellipse -->
+        <ellipse cx="0" cy="30" rx="55" ry="20" fill="#8B4513" stroke="#654321" stroke-width="5"/>
+        <!-- Boat ends curved up -->
+        <path d="M -50,30 Q -48,15 -42,25" fill="#CD853F" stroke="#8B4513" stroke-width="5"/>
+        <path d="M 50,30 Q 48,15 42,25" fill="#CD853F" stroke="#8B4513" stroke-width="5"/>
+        <!-- Mast -->
+        <rect x="-6" y="-45" width="12" height="75" fill="#654321" stroke="#4d3319" stroke-width="4"/>
+        <!-- Sail -->
+        <polygon points="0,-45 45,-28 45,10" fill="#F5F5F5" stroke="#D3D3D3" stroke-width="5"/>
+        <!-- Fishing nets in water -->
+        <circle cx="-28" cy="20" r="8" fill="#87CEEB" stroke="#4169E1" stroke-width="3"/>
+        <circle cx="25" cy="18" r="7" fill="#4682B4" stroke="#1E90FF" stroke-width="3"/>
       </g>
     </svg>`,
     yields: {
@@ -308,18 +362,23 @@ export const improvements = [
     icon: '🛢️',
     color: '#2F4F4F',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#191970"/>
+      <circle cx="100" cy="100" r="95" fill="#191970" stroke="#000080" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <path d="M -60,50 Q -40,45 -20,50 Q 0,55 20,50 Q 40,45 60,50" fill="none" stroke="#4169E1" stroke-width="4" opacity="0.5"/>
-        <rect x="-35" y="-20" width="70" height="40" fill="#696969" stroke="#505050" stroke-width="3"/>
-        <rect x="-30" y="-15" width="60" height="30" fill="#808080" stroke="#505050" stroke-width="2"/>
-        <rect x="-5" y="-60" width="10" height="40" fill="#A9A9A9" stroke="#696969" stroke-width="2"/>
-        <rect x="-25" y="-60" width="8" height="40" fill="#808080" stroke="#696969" stroke-width="2"/>
-        <rect x="17" y="-60" width="8" height="40" fill="#808080" stroke="#696969" stroke-width="2"/>
-        <circle cx="0" cy="-65" r="8" fill="#FF6347" stroke="#C41E3A" stroke-width="2"/>
-        <rect x="-40" y="18" width="12" height="35" fill="#696969" stroke="#505050" stroke-width="2"/>
-        <rect x="-10" y="18" width="12" height="35" fill="#696969" stroke="#505050" stroke-width="2"/>
-        <rect x="18" y="18" width="12" height="35" fill="#696969" stroke="#505050" stroke-width="2"/>
+        <!-- Ocean waves -->
+        <path d="M -75,55 Q -50,45 -25,55 Q 0,65 25,55 Q 50,45 75,55" fill="none" stroke="#4169E1" stroke-width="6"/>
+        <!-- Platform base - large and industrial -->
+        <rect x="-45" y="-15" width="90" height="50" fill="#696969" stroke="#505050" stroke-width="5"/>
+        <rect x="-38" y="-8" width="76" height="36" fill="#808080" stroke="#505050" stroke-width="4"/>
+        <!-- Platform towers -->
+        <rect x="-8" y="-70" width="16" height="55" fill="#A9A9A9" stroke="#696969" stroke-width="5"/>
+        <rect x="-32" y="-70" width="12" height="55" fill="#808080" stroke="#696969" stroke-width="4"/>
+        <rect x="20" y="-70" width="12" height="55" fill="#808080" stroke="#696969" stroke-width="4"/>
+        <!-- Warning light on top -->
+        <circle cx="0" cy="-78" r="12" fill="#FF6347" stroke="#C41E3A" stroke-width="4"/>
+        <!-- Support legs in water -->
+        <rect x="-50" y="33" width="15" height="45" fill="#696969" stroke="#505050" stroke-width="4"/>
+        <rect x="-15" y="33" width="15" height="45" fill="#696969" stroke="#505050" stroke-width="4"/>
+        <rect x="20" y="33" width="15" height="45" fill="#696969" stroke="#505050" stroke-width="4"/>
       </g>
     </svg>`,
     yields: {
@@ -341,16 +400,17 @@ export const improvements = [
     icon: '🛣️',
     color: '#696969',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#8FBC8F"/>
+      <circle cx="100" cy="100" r="95" fill="#8FBC8F" stroke="#6B8E6B" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <rect x="-25" y="-80" width="50" height="160" fill="#696969" stroke="#505050" stroke-width="2"/>
-        <rect x="-22" y="-75" width="44" height="150" fill="#808080"/>
-        <rect x="-3" y="-70" width="6" height="15" fill="#FFD700"/>
-        <rect x="-3" y="-45" width="6" height="15" fill="#FFD700"/>
-        <rect x="-3" y="-20" width="6" height="15" fill="#FFD700"/>
-        <rect x="-3" y="5" width="6" height="15" fill="#FFD700"/>
-        <rect x="-3" y="30" width="6" height="15" fill="#FFD700"/>
-        <rect x="-3" y="55" width="6" height="15" fill="#FFD700"/>
+        <!-- Road - vertical path with bold borders -->
+        <rect x="-35" y="-85" width="70" height="170" fill="#696969" stroke="#505050" stroke-width="5"/>
+        <rect x="-28" y="-78" width="56" height="156" fill="#808080"/>
+        <!-- Center line dashes - bold yellow -->
+        <rect x="-5" y="-70" width="10" height="20" fill="#FFD700" stroke="#DAA520" stroke-width="2"/>
+        <rect x="-5" y="-40" width="10" height="20" fill="#FFD700" stroke="#DAA520" stroke-width="2"/>
+        <rect x="-5" y="-10" width="10" height="20" fill="#FFD700" stroke="#DAA520" stroke-width="2"/>
+        <rect x="-5" y="20" width="10" height="20" fill="#FFD700" stroke="#DAA520" stroke-width="2"/>
+        <rect x="-5" y="50" width="10" height="20" fill="#FFD700" stroke="#DAA520" stroke-width="2"/>
       </g>
     </svg>`,
     yields: {},
@@ -367,17 +427,19 @@ export const improvements = [
     icon: '🚂',
     color: '#2d2d2d',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#8FBC8F"/>
+      <circle cx="100" cy="100" r="95" fill="#8FBC8F" stroke="#6B8E6B" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <rect x="-30" y="-80" width="60" height="160" fill="#654321" opacity="0.4"/>
-        <rect x="-20" y="-75" width="10" height="150" fill="#696969" stroke="#505050" stroke-width="1"/>
-        <rect x="10" y="-75" width="10" height="150" fill="#696969" stroke="#505050" stroke-width="1"/>
-        <rect x="-25" y="-65" width="50" height="4" fill="#8B4513"/>
-        <rect x="-25" y="-40" width="50" height="4" fill="#8B4513"/>
-        <rect x="-25" y="-15" width="50" height="4" fill="#8B4513"/>
-        <rect x="-25" y="10" width="50" height="4" fill="#8B4513"/>
-        <rect x="-25" y="35" width="50" height="4" fill="#8B4513"/>
-        <rect x="-25" y="60" width="50" height="4" fill="#8B4513"/>
+        <!-- Gravel bed -->
+        <rect x="-40" y="-85" width="80" height="170" fill="#654321" stroke="#4d3319" stroke-width="4"/>
+        <!-- Steel rails - bold and parallel -->
+        <rect x="-28" y="-80" width="14" height="160" fill="#696969" stroke="#505050" stroke-width="4"/>
+        <rect x="14" y="-80" width="14" height="160" fill="#696969" stroke="#505050" stroke-width="4"/>
+        <!-- Railroad ties - wooden cross beams -->
+        <rect x="-35" y="-70" width="70" height="8" fill="#8B4513" stroke="#654321" stroke-width="3"/>
+        <rect x="-35" y="-40" width="70" height="8" fill="#8B4513" stroke="#654321" stroke-width="3"/>
+        <rect x="-35" y="-10" width="70" height="8" fill="#8B4513" stroke="#654321" stroke-width="3"/>
+        <rect x="-35" y="20" width="70" height="8" fill="#8B4513" stroke="#654321" stroke-width="3"/>
+        <rect x="-35" y="50" width="70" height="8" fill="#8B4513" stroke="#654321" stroke-width="3"/>
       </g>
     </svg>`,
     yields: {
@@ -397,17 +459,21 @@ export const improvements = [
     icon: '🏰',
     color: '#808080',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="200" height="200" fill="#8FBC8F"/>
+      <circle cx="100" cy="100" r="95" fill="#8FBC8F" stroke="#6B8E6B" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <rect x="-45" y="-25" width="90" height="60" fill="#808080" stroke="#505050" stroke-width="3"/>
-        <rect x="-40" y="-20" width="80" height="50" fill="#A9A9A9" stroke="#696969" stroke-width="2"/>
-        <rect x="-50" y="-35" width="12" height="20" fill="#808080" stroke="#505050" stroke-width="2"/>
-        <rect x="-20" y="-35" width="12" height="20" fill="#808080" stroke="#505050" stroke-width="2"/>
-        <rect x="8" y="-35" width="12" height="20" fill="#808080" stroke="#505050" stroke-width="2"/>
-        <rect x="38" y="-35" width="12" height="20" fill="#808080" stroke="#505050" stroke-width="2"/>
-        <rect x="-10" y="0" width="20" height="25" fill="#654321" stroke="#4d3319" stroke-width="2"/>
-        <rect x="-25" y="-10" width="12" height="12" fill="#2d2d2d" stroke="#1a1a1a" stroke-width="1"/>
-        <rect x="13" y="-10" width="12" height="12" fill="#2d2d2d" stroke="#1a1a1a" stroke-width="1"/>
+        <!-- Main fort walls - thick and sturdy -->
+        <rect x="-55" y="-20" width="110" height="70" fill="#808080" stroke="#505050" stroke-width="5"/>
+        <rect x="-48" y="-12" width="96" height="56" fill="#A9A9A9" stroke="#696969" stroke-width="4"/>
+        <!-- Battlements/crenellations on top -->
+        <rect x="-60" y="-42" width="18" height="28" fill="#808080" stroke="#505050" stroke-width="5"/>
+        <rect x="-28" y="-42" width="18" height="28" fill="#808080" stroke="#505050" stroke-width="5"/>
+        <rect x="4" y="-42" width="18" height="28" fill="#808080" stroke="#505050" stroke-width="5"/>
+        <rect x="36" y="-42" width="18" height="28" fill="#808080" stroke="#505050" stroke-width="5"/>
+        <!-- Gate entrance -->
+        <rect x="-15" y="5" width="30" height="35" fill="#654321" stroke="#4d3319" stroke-width="5"/>
+        <!-- Arrow slits -->
+        <rect x="-35" y="-5" width="16" height="18" fill="#2d2d2d" stroke="#1a1a1a" stroke-width="3"/>
+        <rect x="19" y="-5" width="16" height="18" fill="#2d2d2d" stroke="#1a1a1a" stroke-width="3"/>
       </g>
     </svg>`,
     yields: {},

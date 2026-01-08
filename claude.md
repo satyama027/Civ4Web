@@ -1,282 +1,191 @@
-# Civ4web - Civilization IV: Beyond the Sword Web Clone
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
-A web-based clone of Civilization IV: Beyond the Sword built with modern web technologies. The goal is to recreate the full game experience with exact Civ4 BTS mechanics and formulas.
 
-## Technology Stack
-- **Frontend Framework**: React 18 with Vite
-- **State Management**: Redux Toolkit
-- **Routing**: React Router DOM
-- **Rendering**: Pixi.js (for future game map rendering with WebGL)
-- **Styling**: CSS (custom Civ4-themed styling)
-- **Package Manager**: npm
+Civ4web is a web-based clone of Civilization IV: Beyond the Sword. The goal is to recreate the exact Civ4 BTS game mechanics and formulas using modern web technologies.
 
-## Project Structure
+**Tech Stack**: React 18 + Vite, Redux Toolkit, React Router, Pixi.js (planned for map rendering)
 
-```
-Civ4web/
-├── src/
-│   ├── data/              # Game data files
-│   │   ├── yields.js      # 11 yield types with SVG icons
-│   │   ├── resources.js   # 27 resources (Strategic, Luxury, Bonus)
-│   │   ├── terrainTypes.js # 14 terrain types
-│   │   ├── improvements.js # 15 tile improvements
-│   │   ├── units.js       # 50+ standard + 34 unique units
-│   │   ├── technologies.js # 90+ technologies
-│   │   ├── buildings.js   # 50+ standard + 34 unique buildings
-│   │   ├── civilizations.js # 34 civilizations
-│   │   └── leaders.js     # 52 leaders with traits
-│   ├── pages/
-│   │   ├── MainMenu.jsx   # Main menu screen
-│   │   └── Civilopedia.jsx # Encyclopedia with 9 categories
-│   ├── styles/
-│   │   ├── MainMenu.css
-│   │   └── Civilopedia.css
-│   ├── store/
-│   │   └── store.js       # Redux store configuration
-│   ├── App.jsx
-│   └── main.jsx
-├── package.json
-├── vite.config.js
-└── claude.md              # This file
+## Development Commands
+
+```bash
+# Start development server at http://localhost:5173/
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Run linter
+npm run lint
 ```
 
-## Current Features
+## Architecture
 
-### Main Menu
-- "New Game" button (placeholder)
-- "Civilopedia" button (fully functional)
-- Civ4-themed UI with gold/brown aesthetic
+### Three-Column Civilopedia Pattern
 
-### Civilopedia
-A comprehensive encyclopedia with a three-column interface:
+The Civilopedia uses a progressive disclosure pattern with three distinct columns:
 
-#### Interface Layout
-1. **Left Sidebar (Categories)**
-   - 9 main categories
-   - Always visible
-   - Active category highlighted
+1. **Left Sidebar (Category Selector)**: Always visible, contains category buttons
+2. **Middle Sidebar (Item List)**: Conditionally rendered when `selectedCategory !== null`, slides in with CSS animation
+3. **Right Content**: Shows item details or placeholder text
 
-2. **Middle Sidebar (Items)**
-   - Appears when category selected (slides in with animation)
-   - Search functionality
-   - Scrollable item list
-   - Selected item highlighted
+**Key State**:
+- `selectedCategory`: Controls middle sidebar visibility (null = hidden)
+- `selectedItem`: Controls which item details are displayed
+- `searchTerm`: Filters items in middle sidebar
 
-3. **Right Content Area (Details)**
-   - Full item details with SVG icons
-   - Cross-linking between related items
-   - Exact Civ4 BTS mechanics and formulas
+When adding new categories to Civilopedia:
+1. Add data file to `src/data/` with standard object structure
+2. Import in `Civilopedia.jsx` and add to `categories` array
+3. Create `render{Category}Details()` function following existing patterns
+4. Add case to `renderItemDetails()` switch statement
 
-#### Categories
-1. **Yields** (11 items)
-   - Food, Production, Commerce, Science, Gold, Culture
-   - Espionage, Health, Happiness, Great People Points, Experience
-   - Custom SVG icons for each
-   - Exact Civ4 formulas
+### Data Object Structure
 
-2. **Resources** (27 items)
-   - Strategic (7): Iron, Copper, Horses, Oil, Uranium, Coal, Aluminum
-   - Luxury (10): Gold, Silver, Gems, Silk, Spices, Wine, Ivory, Furs, Dyes, Incense
-   - Bonus (10): Wheat, Corn, Rice, Cow, Pig, Sheep, Fish, Clam, Crab, Deer
-   - Each with yields, tech requirements, enabled units/buildings
+All data objects follow this standard pattern:
 
-3. **Terrain Types** (14 items)
-   - Base Terrain (5): Grassland, Plains, Desert, Tundra, Snow
-   - Features (4): Forest, Jungle, Floodplains, Oasis
-   - Elevation (2): Hills, Peaks
-   - Water (2): Coast, Ocean
-   - Movement costs, defense bonuses, base yields
+```javascript
+{
+  id: 'unique_id',           // Required: unique identifier
+  name: 'Display Name',      // Required: display text
+  icon: '🎯',                // Required: emoji fallback
+  color: '#hex',             // Required: theme color
+  svgIcon: '<svg>...</svg>', // Required for visual entities
+  description: 'text',       // Required: detailed explanation
+  category: 'Type',          // Optional: subcategory
+  // ... category-specific properties
+}
+```
 
-4. **Improvements** (15 items)
-   - Food: Farm, Watermill
-   - Production: Mine, Workshop, Windmill
-   - Commerce: Cottage (→Hamlet→Village→Town)
-   - Resources: Pasture, Plantation, Camp, Fishing Boats, Offshore Platform
-   - Infrastructure: Road, Railroad, Fort
-   - Build times, tech requirements, bonus yields
+**SVG Icons**: All yields, resources, terrain types, and improvements use inline SVG markup in the `svgIcon` field. Icons are rendered using `dangerouslySetInnerHTML` in a container with class `yield-image-container`.
 
-5. **Units** (84 items)
-   - 50+ standard units (Warrior, Archer, Swordsman, Knight, Cavalry, etc.)
-   - 34 unique units (Navy SEAL, Samurai, Praetorian, etc.)
-   - Stats: cost, strength, movement, required tech
+### Cross-Linking System
 
-6. **Technologies** (90+ items)
-   - All eras: Ancient → Future
-   - Research costs, prerequisites, unlocks
+The `navigateToItem(categoryId, itemName)` function enables cross-navigation between related entities (e.g., clicking a civilization's unique unit navigates to that unit). It:
+1. Sets the target category as selected
+2. Finds the item by name (or uniqueUnit/uniqueBuilding properties)
+3. Sets that item as selected
 
-7. **Buildings** (84 items)
-   - 50+ standard buildings
-   - 34 unique buildings (Mall, Madrassa, Rathaus, etc.)
-   - Effects, costs, tech requirements
-
-8. **Civilizations** (34 items)
-   - All Civ4 BTS civilizations
-   - Unique units, unique buildings
-   - Starting techs, leaders
-
-9. **Leaders** (52 items)
-   - Leader traits (detailed descriptions)
-   - Civilizations, favorite civics
-
-### Key Features
-- **SVG Icons**: All yields, resources, terrain types, and improvements have custom SVG icons
-- **Cross-linking**: Click on related items to navigate (e.g., click a civilization's unique unit to view it)
-- **Search**: Filter items within each category
-- **Exact Mechanics**: All formulas and mechanics match Civ4 BTS exactly
-- **Unique Badges**: Special styling for unique units/buildings
-- **Responsive Design**: Scrollable sidebars and content areas
-
-## Design Decisions
-
-### Grid Type
-- **Square grid** (not hexagonal)
-- Matches original Civ4 layout
-
-### Player Mode
-- **Single player only**
-- Full Civ4 BTS clone experience
-
-### Rendering
-- **Pixi.js with WebGL** for future game map rendering
-- High performance for large maps
-
-### Icons
-- **Custom SVG icons** instead of stock images
-- Scalable, themeable, no external dependencies
-- Used for: Yields, Resources, Terrain Types, Improvements
+When adding cross-links, use clickable spans with `className="clickable"` and `onClick={() => navigateToItem(...)}`.
 
 ### State Management
-- **Redux Toolkit** for game state (future implementation)
-- Currently set up but not yet used
+
+Redux Toolkit store is configured but **not yet used**. Current implementation uses React `useState` only. When implementing game logic:
+- Use Redux for: game state, city data, unit positions, technology progress, diplomacy
+- Keep UI state (sidebar selection, search) in component state
+
+## Styling
+
+**Theme Colors**:
+- Primary gold: `#d4af37`
+- Brown: `#8b7355`
+- Background gradient: `#1a1a2e` to `#16213e`
+- Text: `#f0d98f`
+
+**CSS Architecture**: Each page has its own CSS file. The Civilopedia uses:
+- `.category-sidebar`: Left column (200px wide)
+- `.items-sidebar`: Middle column (280px, conditionally rendered)
+- `.main-content`: Right column (flex: 1)
+
+Scrollbars are styled consistently across all scrollable containers.
+
+## Game Mechanics Implementation
+
+**Critical**: All formulas must match Civ4 BTS exactly. Reference the existing data files for exact mechanics:
+- `src/data/yields.js`: Contains all yield formulas
+- Each data file includes Civ4-accurate mechanics in descriptions
+
+### Square Grid vs Hexagonal
+
+This project uses **square tiles** (not hexagonal) to match original Civ4 layout.
+
+### Pixi.js Integration (Planned)
+
+When implementing the game map:
+- Use Pixi.js for WebGL rendering (already in dependencies)
+- Create separate map rendering component
+- Keep map state in Redux
+- Render terrain, resources, improvements, and units as sprites
+
+## Adding New Civilopedia Categories
+
+Example workflow for adding "Civics" category:
+
+1. Create `src/data/civics.js`:
+```javascript
+export const civics = [
+  {
+    id: 'hereditary_rule',
+    name: 'Hereditary Rule',
+    icon: '👑',
+    color: '#9370DB',
+    svgIcon: '<svg>...</svg>',
+    category: 'Government',
+    description: '...',
+    effects: [...],
+    // ...
+  }
+];
+```
+
+2. Update `Civilopedia.jsx`:
+```javascript
+import { civics } from '../data/civics';
+
+const categories = [
+  // ... existing categories
+  { id: 'civics', name: 'Civics', data: civics }
+];
+
+const renderCivicDetails = (civic) => (
+  <div className="item-details">
+    {/* Follow existing render patterns */}
+  </div>
+);
+
+// Add to renderItemDetails switch:
+case 'civics':
+  return renderCivicDetails(item);
+```
 
 ## Data Sources
-- **Civilization Wiki (Fandom)**: Primary source for game data
-- **CivFanatics**: Community resources and guides
-- **GitHub XML files**: Original Civ4 BTS game data
 
-## Game Mechanics (Planned Implementation)
+When adding/verifying game data, use these sources:
+- **Civilization Wiki (Fandom)**: Primary reference for mechanics
+- **CivFanatics**: Community guides and strategies
+- **GitHub XML files**: Original Civ4 BTS game data for exact values
 
-### Yields System
-All yields with exact Civ4 BTS formulas:
-- Food: Population growth (2 per citizen, surplus accumulates)
-- Production: Building units/buildings/wonders
-- Commerce: Split into Science/Gold/Culture/Espionage via sliders
-- Science: Technology research with prerequisite bonuses
-- Gold: Treasury, maintenance, upgrades
-- Culture: Border expansion, cultural victory
-- Espionage: Spy missions, city visibility
-- Health: City growth penalty if negative
-- Happiness: Citizen productivity, disorder prevention
-- GPP: Great People generation
-- Experience: Unit promotions
+## Code Patterns
 
-### Resource System
-- Strategic resources enable specific units
-- Luxury resources provide happiness
-- Bonus resources provide yields and health
-- Resource improvements via workers
-- Trade with other civilizations
+**Component Structure**: Use functional components with hooks. Keep render functions for detail views as separate const functions (not nested inside component).
 
-### Terrain & Improvements
-- Base terrain yields
-- Terrain features modify yields
-- Improvements add yields over time
-- Movement costs affect unit travel
-- Defense bonuses for combat
+**Imports**: Data files export named exports (e.g., `export const yields = [...]`). Some exports include utility objects (e.g., `yieldCategories`, `resourceCategories`).
+
+**Navigation**: Use `react-router-dom`'s `useNavigate()` hook for page transitions. Main routes defined in `App.jsx`.
 
 ## Implementation Priorities
-1. ✅ Main Menu UI
-2. ✅ Civilopedia with all categories
-3. ✅ SVG icons for core entities
-4. ✅ Cross-linking system
-5. ✅ Three-column interface
-6. ⬜ Game map rendering (Pixi.js)
-7. ⬜ City mechanics
-8. ⬜ Unit movement and combat
-9. ⬜ Technology tree
-10. ⬜ Diplomacy system
-11. ⬜ Victory conditions
 
-## Git Repository
-- **URL**: https://github.com/satyama027/Civ4Web
-- Initial commit with full Civilopedia implementation
-- All game data committed
+Completed:
+- ✅ Main Menu UI
+- ✅ Civilopedia (9 categories with SVG icons)
+- ✅ Three-column interface with animations
+- ✅ Cross-linking system
+- ✅ Search functionality
 
-## Development
+Next priorities:
+1. Game map rendering with Pixi.js
+2. City founding and management
+3. Unit movement and combat
+4. Technology tree UI and research mechanics
 
-### Running the Project
-```bash
-npm run dev
-```
-Server runs at: http://localhost:5173/
+## Project Constraints
 
-### Building for Production
-```bash
-npm run build
-```
-
-### Adding New Data
-1. Create/update files in `src/data/`
-2. Include SVG icons for visual entities
-3. Add to Civilopedia categories
-4. Create render function if new category
-5. Update CSS if needed
-
-## Code Style
-
-### Component Structure
-- Functional components with hooks
-- useState for local state
-- Clear separation of concerns
-
-### Data Structure
-All data objects include:
-- `id`: Unique identifier
-- `name`: Display name
-- `icon`: Emoji fallback
-- `color`: Theme color
-- `svgIcon`: Inline SVG markup
-- `description`: Detailed explanation
-- Category-specific properties
-
-### CSS Conventions
-- Civ4 color scheme (gold #d4af37, brown #8b7355)
-- Gradients for depth
-- Hover effects and transitions
-- Scrollbar styling for consistency
-
-## Future Enhancements
-
-### Short Term
-- Add remaining Civilopedia categories (Civics, Religions, Wonders, Promotions, Specialists, Corporations)
-- Implement game map with Pixi.js
-- Basic city founding and management
-- Worker actions and improvements
-
-### Medium Term
-- Unit movement and stacking
-- Combat system
-- Technology research
-- Building construction
-- City growth and food management
-
-### Long Term
-- Full AI opponents
-- Diplomacy and trade
-- Victory conditions
-- Save/load system
-- Game settings and customization
-
-## Known Issues
-- None currently
-
-## Notes
-- All formulas are exact Civ4 BTS mechanics
-- No time estimates - focus on implementation quality
-- Avoid over-engineering - implement features as requested
-- Keep solutions simple and maintainable
-
----
-
-Last Updated: 2026-01-07
+- **Single player only**: No multiplayer functionality planned
+- **Exact mechanics**: All game formulas must match Civ4 BTS precisely
+- **No time estimates**: Focus on quality implementation over speed
+- **Simple solutions**: Avoid over-engineering; implement features as requested

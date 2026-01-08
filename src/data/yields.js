@@ -5,17 +5,20 @@ export const yields = [
     icon: '🌾',
     color: '#90EE90',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#90EE90" stroke="#2d5016" stroke-width="3"/>
+      <circle cx="100" cy="100" r="95" fill="#2E7D32" stroke="#1B5E20" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <path d="M -5,-60 Q -8,-30 -10,0 L -8,50 Q -8,60 0,60 Q 8,60 8,50 L 10,0 Q 8,-30 5,-60" fill="#8B4513" stroke="#2d5016" stroke-width="2"/>
-        <ellipse cx="-15" cy="-65" rx="6" ry="12" fill="#FFD700" stroke="#2d5016" stroke-width="1.5"/>
-        <ellipse cx="-12" cy="-55" rx="5" ry="11" fill="#FFD700" stroke="#2d5016" stroke-width="1.5"/>
-        <ellipse cx="-9" cy="-45" rx="5" ry="10" fill="#FFD700" stroke="#2d5016" stroke-width="1.5"/>
-        <ellipse cx="15" cy="-65" rx="6" ry="12" fill="#FFD700" stroke="#2d5016" stroke-width="1.5"/>
-        <ellipse cx="12" cy="-55" rx="5" ry="11" fill="#FFD700" stroke="#2d5016" stroke-width="1.5"/>
-        <ellipse cx="9" cy="-45" rx="5" ry="10" fill="#FFD700" stroke="#2d5016" stroke-width="1.5"/>
-        <ellipse cx="0" cy="-70" rx="6" ry="13" fill="#FFD700" stroke="#2d5016" stroke-width="1.5"/>
-        <ellipse cx="0" cy="-58" rx="5" ry="11" fill="#FFD700" stroke="#2d5016" stroke-width="1.5"/>
+        <!-- Wheat stalk - bold and simple -->
+        <rect x="-7" y="-70" width="14" height="125" rx="4" fill="#8D6E63" stroke="#5D4037" stroke-width="4"/>
+        <!-- Large grain bundles - very visible -->
+        <ellipse cx="-22" cy="-55" rx="11" ry="18" fill="#FDD835" stroke="#F57F17" stroke-width="3"/>
+        <ellipse cx="-18" cy="-35" rx="10" ry="16" fill="#FFEB3B" stroke="#F57F17" stroke-width="3"/>
+        <ellipse cx="-14" cy="-15" rx="9" ry="14" fill="#FDD835" stroke="#F57F17" stroke-width="3"/>
+        <ellipse cx="0" cy="-62" rx="11" ry="19" fill="#FDD835" stroke="#F57F17" stroke-width="3"/>
+        <ellipse cx="0" cy="-40" rx="10" ry="17" fill="#FFEB3B" stroke="#F57F17" stroke-width="3"/>
+        <ellipse cx="0" cy="-20" rx="9" ry="15" fill="#FDD835" stroke="#F57F17" stroke-width="3"/>
+        <ellipse cx="22" cy="-55" rx="11" ry="18" fill="#FDD835" stroke="#F57F17" stroke-width="3"/>
+        <ellipse cx="18" cy="-35" rx="10" ry="16" fill="#FFEB3B" stroke="#F57F17" stroke-width="3"/>
+        <ellipse cx="14" cy="-15" rx="9" ry="14" fill="#FDD835" stroke="#F57F17" stroke-width="3"/>
       </g>
     </svg>`,
     description: 'Food determines population growth in your cities. Each citizen consumes 2 food per turn. Surplus food is stored and when the storage fills up, your city grows by one population point.',
@@ -39,12 +42,20 @@ export const yields = [
     icon: '🔨',
     color: '#CD853F',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#CD853F" stroke="#8B4513" stroke-width="3"/>
+      <circle cx="100" cy="100" r="95" fill="#6D4C41" stroke="#4E342E" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <rect x="-8" y="20" width="16" height="45" rx="2" fill="#654321" stroke="#2d1f0d" stroke-width="2"/>
-        <path d="M -35,-30 L -10,-5 L -10,15 L -45,15 Z" fill="#A0A0A0" stroke="#2d2d2d" stroke-width="2"/>
-        <path d="M -10,-5 L 40,-5 L 40,15 L -10,15 Z" fill="#C0C0C0" stroke="#2d2d2d" stroke-width="2"/>
-        <ellipse cx="15" cy="5" rx="25" ry="12" fill="#E8E8E8" stroke="#2d2d2d" stroke-width="1.5"/>
+        <!-- Hammer handle - thick and prominent -->
+        <rect x="-12" y="10" width="24" height="65" rx="4" fill="#8D6E63" stroke="#5D4037" stroke-width="4"/>
+        <ellipse cx="0" cy="72" rx="14" ry="8" fill="#6D4C41" stroke="#5D4037" stroke-width="3"/>
+        <!-- Hammer head - bold rectangular design -->
+        <rect x="-50" y="-18" width="100" height="36" rx="4" fill="#757575" stroke="#424242" stroke-width="4"/>
+        <!-- Top highlight on hammer -->
+        <rect x="-50" y="-18" width="100" height="12" rx="4" fill="#9E9E9E" stroke="#757575" stroke-width="2"/>
+        <!-- Hammer striking face -->
+        <rect x="35" y="-15" width="15" height="30" fill="#616161" stroke="#424242" stroke-width="3"/>
+        <!-- Hammer claw -->
+        <path d="M -50,-15 L -62,-8 L -62,8 L -50,15 Z" fill="#616161" stroke="#424242" stroke-width="3"/>
+        <path d="M -62,-8 L -70,-3 L -70,3 L -62,8 Z" fill="#757575" stroke="#424242" stroke-width="3"/>
       </g>
     </svg>`,
     description: 'Production (hammers) is used to build units, buildings, and wonders. The more production your city generates, the faster it can complete construction projects.',
@@ -68,10 +79,18 @@ export const yields = [
     icon: '💰',
     color: '#FFD700',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#FFD700" stroke="#DAA520" stroke-width="3"/>
-      <circle cx="100" cy="100" r="45" fill="#FFA500" stroke="#B8860B" stroke-width="3"/>
-      <circle cx="100" cy="100" r="38" fill="#FFD700" stroke="#B8860B" stroke-width="2"/>
-      <text x="100" y="115" font-family="serif" font-size="50" font-weight="bold" fill="#8B4513" text-anchor="middle">$</text>
+      <circle cx="100" cy="100" r="95" fill="#F57C00" stroke="#E65100" stroke-width="5"/>
+      <g transform="translate(100, 100)">
+        <!-- Single large gold coin - commerce symbol -->
+        <ellipse cx="0" cy="0" rx="65" ry="58" fill="#FDD835" stroke="#F57F17" stroke-width="5"/>
+        <ellipse cx="0" cy="0" rx="58" ry="51" fill="#FFEB3B" stroke="#F9A825" stroke-width="3"/>
+        <!-- Inner decorative rings -->
+        <ellipse cx="0" cy="0" rx="48" ry="42" fill="none" stroke="#FDD835" stroke-width="4"/>
+        <ellipse cx="0" cy="0" rx="38" ry="33" fill="none" stroke="#F9A825" stroke-width="3"/>
+        <!-- Corner shine marks -->
+        <circle cx="-35" cy="-28" r="8" fill="#FFF9C4" opacity="0.8"/>
+        <circle cx="38" cy="-25" r="6" fill="#FFF9C4" opacity="0.6"/>
+      </g>
     </svg>`,
     description: 'Commerce is the raw economic output that gets distributed into Science, Gold, Culture, and Espionage based on your slider settings. Rivers, coastlines, and trade routes are major commerce sources.',
     sources: [
@@ -95,13 +114,24 @@ export const yields = [
     icon: '🔬',
     color: '#4169E1',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#4169E1" stroke="#1E3A8A" stroke-width="3"/>
+      <circle cx="100" cy="100" r="95" fill="#1565C0" stroke="#0D47A1" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <ellipse cx="0" cy="35" rx="25" ry="8" fill="#87CEEB" stroke="#1E3A8A" stroke-width="2"/>
-        <path d="M -25,35 L -18,-10 L 18,-10 L 25,35 Z" fill="none" stroke="#1E3A8A" stroke-width="2.5" fill="#B0E0E6" opacity="0.7"/>
-        <ellipse cx="0" cy="-10" rx="18" ry="6" fill="#87CEEB" stroke="#1E3A8A" stroke-width="2"/>
-        <rect x="-3" y="-40" width="6" height="30" fill="#696969" stroke="#2d2d2d" stroke-width="1.5"/>
-        <circle cx="0" cy="-40" r="8" fill="#FFFFFF" stroke="#2d2d2d" stroke-width="1.5"/>
+        <!-- Erlenmeyer flask - science beaker -->
+        <!-- Flask neck -->
+        <rect x="-18" y="-65" width="36" height="35" fill="none" stroke="#64B5F6" stroke-width="4"/>
+        <ellipse cx="0" cy="-65" rx="18" ry="6" fill="#E1F5FE" stroke="#64B5F6" stroke-width="3"/>
+        <!-- Flask body -->
+        <path d="M -18,-30 L -45,35 Q -48,45 -40,50 L 40,50 Q 48,45 45,35 L 18,-30 Z"
+              fill="#81D4FA" fill-opacity="0.7" stroke="#64B5F6" stroke-width="4"/>
+        <!-- Liquid inside -->
+        <ellipse cx="0" cy="45" rx="42" ry="10" fill="#42A5F5" stroke="#1976D2" stroke-width="3"/>
+        <path d="M -42,45 L -35,15 L 35,15 L 42,45 Z" fill="#42A5F5" stroke="none"/>
+        <!-- Flask base rim -->
+        <ellipse cx="0" cy="50" rx="40" ry="8" fill="#90CAF9" stroke="#1976D2" stroke-width="3"/>
+        <!-- Bubbles for effect -->
+        <circle cx="-15" cy="25" r="5" fill="#E1F5FE" opacity="0.8"/>
+        <circle cx="10" cy="30" r="6" fill="#E1F5FE" opacity="0.8"/>
+        <circle cx="0" cy="15" r="4" fill="#E1F5FE" opacity="0.8"/>
       </g>
     </svg>`,
     description: 'Science (beakers) is generated from commerce and used to research technologies. Scientists specialists and certain buildings provide additional beakers.',
@@ -125,11 +155,24 @@ export const yields = [
     icon: '💵',
     color: '#FFD700',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#FFD700" stroke="#DAA520" stroke-width="3"/>
-      <circle cx="85" cy="85" r="28" fill="#FFA500" stroke="#B8860B" stroke-width="2.5"/>
-      <circle cx="115" cy="95" r="28" fill="#FFD700" stroke="#B8860B" stroke-width="2.5"/>
-      <circle cx="100" cy="110" r="28" fill="#FFEA00" stroke="#B8860B" stroke-width="2.5"/>
-      <text x="100" y="78" font-family="Georgia, serif" font-size="24" font-weight="bold" fill="#8B4513" text-anchor="middle">GOLD</text>
+      <circle cx="100" cy="100" r="95" fill="#F9A825" stroke="#F57F17" stroke-width="5"/>
+      <g transform="translate(100, 100)">
+        <!-- Stack of coins - treasury -->
+        <!-- Bottom coin -->
+        <ellipse cx="0" cy="35" rx="45" ry="15" fill="#FBC02D" stroke="#F57F17" stroke-width="4"/>
+        <ellipse cx="0" cy="35" rx="38" ry="12" fill="#FDD835" stroke="#F9A825" stroke-width="2"/>
+        <!-- Middle coin -->
+        <ellipse cx="0" cy="15" rx="45" ry="15" fill="#FBC02D" stroke="#F57F17" stroke-width="4"/>
+        <ellipse cx="0" cy="15" rx="38" ry="12" fill="#FFEB3B" stroke="#F9A825" stroke-width="2"/>
+        <!-- Top coin -->
+        <ellipse cx="0" cy="-5" rx="45" ry="15" fill="#FBC02D" stroke="#F57F17" stroke-width="4"/>
+        <ellipse cx="0" cy="-5" rx="38" ry="12" fill="#FDD835" stroke="#F9A825" stroke-width="2"/>
+        <!-- Coin sides (stack effect) -->
+        <rect x="-45" y="15" width="90" height="20" fill="#F9A825" stroke="none"/>
+        <rect x="-45" y="35" width="90" height="0" fill="#F57F17" stroke="none"/>
+        <!-- Highlight top coin -->
+        <ellipse cx="0" cy="-5" rx="25" ry="7" fill="#FFF9C4" opacity="0.5"/>
+      </g>
     </svg>`,
     description: 'Gold is your civilization\'s treasury. It comes from commerce and pays for unit/building maintenance, upgrades, and can rush production. Surplus gold accumulates in your treasury.',
     sources: [
@@ -154,14 +197,21 @@ export const yields = [
     icon: '🎭',
     color: '#9370DB',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#9370DB" stroke="#663399" stroke-width="3"/>
+      <circle cx="100" cy="100" r="95" fill="#6A1B9A" stroke="#4A148C" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <path d="M -35,-25 Q -35,-5 -25,10 L -35,35 Q -40,40 -30,40 Q -20,40 -15,35 L -5,10 Q -5,-10 -20,-25 Z" fill="#FF69B4" stroke="#4B0082" stroke-width="2"/>
-        <circle cx="-20" cy="-15" r="5" fill="#2d2d2d"/>
-        <path d="M -25,5 Q -20,12 -15,5" fill="none" stroke="#8B0000" stroke-width="2"/>
-        <path d="M 35,-25 Q 35,-5 25,10 L 35,35 Q 40,40 30,40 Q 20,40 15,35 L 5,10 Q 5,-10 20,-25 Z" fill="#87CEEB" stroke="#4B0082" stroke-width="2"/>
-        <circle cx="20" cy="-15" r="5" fill="#2d2d2d"/>
-        <path d="M 15,5 Q 20,0 25,5" fill="none" stroke="#8B0000" stroke-width="2"/>
+        <!-- Comedy mask (left - happy) -->
+        <ellipse cx="-30" cy="0" rx="35" ry="42" fill="#E1BEE7" stroke="#7B1FA2" stroke-width="4"/>
+        <circle cx="-40" cy="-8" r="7" fill="#4A148C"/>
+        <circle cx="-20" cy="-8" r="7" fill="#4A148C"/>
+        <path d="M -45,12 Q -30,25 -15,12" fill="none" stroke="#4A148C" stroke-width="5" stroke-linecap="round"/>
+        <!-- Tragedy mask (right - sad) -->
+        <ellipse cx="30" cy="0" rx="35" ry="42" fill="#CE93D8" stroke="#7B1FA2" stroke-width="4"/>
+        <circle cx="20" cy="-8" r="7" fill="#4A148C"/>
+        <circle cx="40" cy="-8" r="7" fill="#4A148C"/>
+        <path d="M 15,20 Q 30,8 45,20" fill="none" stroke="#4A148C" stroke-width="5" stroke-linecap="round"/>
+        <!-- Mask ribbons -->
+        <rect x="-8" y="35" width="16" height="30" rx="3" fill="#9C27B0" stroke="#6A1B9A" stroke-width="3"/>
+        <ellipse cx="0" cy="65" rx="10" ry="6" fill="#7B1FA2" stroke="#4A148C" stroke-width="2"/>
       </g>
     </svg>`,
     description: 'Culture expands your city borders, enables cultural victories, and creates "cultural pressure" against rival cities. Wonders, buildings, and Great Artists generate culture.',
@@ -186,15 +236,24 @@ export const yields = [
     icon: '🕵️',
     color: '#2F4F4F',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#2F4F4F" stroke="#1a1a1a" stroke-width="3"/>
+      <circle cx="100" cy="100" r="95" fill="#263238" stroke="#000000" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <circle cx="25" cy="0" r="35" fill="none" stroke="#B8B8B8" stroke-width="4"/>
-        <rect x="-30" y="-5" width="35" height="10" rx="2" fill="#696969" stroke="#2d2d2d" stroke-width="2" transform="rotate(-45 -12 0)"/>
-        <circle cx="25" cy="0" r="22" fill="rgba(255, 255, 255, 0.2)"/>
-        <path d="M 18,-15 Q 25,-20 32,-15" fill="none" stroke="#B8B8B8" stroke-width="2"/>
-        <path d="M 18,15 Q 25,20 32,15" fill="none" stroke="#B8B8B8" stroke-width="2"/>
-        <circle cx="-40" cy="-40" r="12" fill="#000000" stroke="#696969" stroke-width="2"/>
-        <ellipse cx="-40" cy="-40" rx="6" ry="8" fill="#FFD700" stroke="#2d2d2d" stroke-width="1"/>
+        <!-- Magnifying glass - spy tool -->
+        <!-- Handle -->
+        <rect x="-48" y="25" width="20" height="50" rx="4"
+              fill="#455A64" stroke="#263238" stroke-width="4"
+              transform="rotate(-45 -38 50)"/>
+        <!-- Glass rim -->
+        <circle cx="15" cy="5" r="42" fill="none" stroke="#607D8B" stroke-width="6"/>
+        <!-- Glass surface -->
+        <circle cx="15" cy="5" r="36" fill="#B0BEC5" fill-opacity="0.3" stroke="#78909C" stroke-width="3"/>
+        <!-- Lens glare -->
+        <circle cx="5" cy="-8" r="15" fill="#ECEFF1" opacity="0.6"/>
+        <circle cx="30" cy="15" r="8" fill="#ECEFF1" opacity="0.4"/>
+        <!-- Fingerprint/target in lens -->
+        <circle cx="15" cy="5" r="18" fill="none" stroke="#37474F" stroke-width="2" opacity="0.6"/>
+        <circle cx="15" cy="5" r="12" fill="none" stroke="#37474F" stroke-width="2" opacity="0.6"/>
+        <circle cx="15" cy="5" r="6" fill="none" stroke="#37474F" stroke-width="2" opacity="0.6"/>
       </g>
     </svg>`,
     description: 'Espionage points (EP) are used for spy missions against rival civilizations. Accumulate EP against a target to unlock vision and enable sabotage missions. Introduced in Beyond the Sword.',
@@ -220,11 +279,18 @@ export const yields = [
     icon: '❤️',
     color: '#FF6B6B',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#FF6B6B" stroke="#C41E3A" stroke-width="3"/>
+      <circle cx="100" cy="100" r="95" fill="#C62828" stroke="#B71C1C" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <circle cx="0" cy="0" r="50" fill="#FFFFFF" stroke="#C41E3A" stroke-width="3"/>
-        <rect x="-10" y="-35" width="20" height="70" rx="2" fill="#C41E3A"/>
-        <rect x="-35" y="-10" width="70" height="20" rx="2" fill="#C41E3A"/>
+        <!-- White circle background -->
+        <circle cx="0" cy="0" r="60" fill="#FFFFFF" stroke="#C62828" stroke-width="5"/>
+        <!-- Red cross - medical symbol -->
+        <!-- Vertical bar -->
+        <rect x="-15" y="-50" width="30" height="100" rx="5" fill="#D32F2F" stroke="#B71C1C" stroke-width="4"/>
+        <!-- Horizontal bar -->
+        <rect x="-50" y="-15" width="100" height="30" rx="5" fill="#D32F2F" stroke="#B71C1C" stroke-width="4"/>
+        <!-- Highlight on cross -->
+        <rect x="-12" y="-47" width="10" height="94" rx="3" fill="#EF5350" opacity="0.6"/>
+        <rect x="-47" y="-12" width="94" height="10" rx="3" fill="#EF5350" opacity="0.6"/>
       </g>
     </svg>`,
     description: 'Health determines how large your city can grow. Unhealthy cities (red cross) grow slowly or not at all, and suffer production penalties. Health comes from resources and buildings.',
@@ -249,13 +315,25 @@ export const yields = [
     icon: '😊',
     color: '#FFD93D',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#FFD93D" stroke="#FFA500" stroke-width="3"/>
-      <circle cx="100" cy="100" r="70" fill="#FFEB3B" stroke="#F57C00" stroke-width="2"/>
-      <circle cx="75" cy="85" r="10" fill="#2d2d2d"/>
-      <circle cx="125" cy="85" r="10" fill="#2d2d2d"/>
-      <path d="M 70,110 Q 100,135 130,110" fill="none" stroke="#2d2d2d" stroke-width="5" stroke-linecap="round"/>
-      <path d="M 65,75 Q 75,70 85,75" fill="none" stroke="#2d2d2d" stroke-width="3" stroke-linecap="round"/>
-      <path d="M 115,75 Q 125,70 135,75" fill="none" stroke="#2d2d2d" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="100" cy="100" r="95" fill="#F9A825" stroke="#F57F17" stroke-width="5"/>
+      <g transform="translate(100, 100)">
+        <!-- Smiley face - bold and clear -->
+        <circle cx="0" cy="0" r="65" fill="#FDD835" stroke="#F57F17" stroke-width="5"/>
+        <!-- Eyes -->
+        <circle cx="-25" cy="-12" r="11" fill="#3E2723"/>
+        <circle cx="25" cy="-12" r="11" fill="#3E2723"/>
+        <!-- Eye highlights -->
+        <circle cx="-22" cy="-16" r="5" fill="#5D4037"/>
+        <circle cx="28" cy="-16" r="5" fill="#5D4037"/>
+        <!-- Big smile -->
+        <path d="M -35,15 Q -25,45 0,48 Q 25,45 35,15"
+              fill="#D84315" stroke="#3E2723" stroke-width="5" stroke-linecap="round"/>
+        <path d="M -35,15 Q -25,40 0,42 Q 25,40 35,15"
+              fill="#FF6F00" stroke="none"/>
+        <!-- Cheek blush -->
+        <ellipse cx="-45" cy="10" rx="12" ry="8" fill="#FF6F00" opacity="0.4"/>
+        <ellipse cx="45" cy="10" rx="12" ry="8" fill="#FF6F00" opacity="0.4"/>
+      </g>
     </svg>`,
     description: 'Happiness determines citizen contentment. Unhappy citizens (red faces) don\'t work and can cause disorder. Happy citizens can work tiles and be assigned as specialists.',
     sources: [
@@ -281,15 +359,28 @@ export const yields = [
     icon: '🎓',
     color: '#9B59B6',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#9B59B6" stroke="#663399" stroke-width="3"/>
+      <circle cx="100" cy="100" r="95" fill="#6A1B9A" stroke="#4A148C" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <polygon points="0,-45 -50,-20 -50,-10 0,15 50,-10 50,-20" fill="#2d2d2d" stroke="#1a1a1a" stroke-width="2"/>
-        <polygon points="0,-45 -50,-20 0,5 50,-20" fill="#FFD700" stroke="#DAA520" stroke-width="2"/>
-        <rect x="-5" y="-45" width="10" height="50" fill="#8B4513" stroke="#654321" stroke-width="2"/>
-        <rect x="-15" y="-50" width="30" height="8" rx="2" fill="#2d2d2d" stroke="#1a1a1a" stroke-width="1.5"/>
-        <polygon points="0,-48 -10,-52 10,-52" fill="#FFD700"/>
-        <circle cx="-35" cy="20" r="8" fill="#FFFFFF" stroke="#663399" stroke-width="2"/>
-        <circle cx="-35" cy="20" r="4" fill="#FFD700"/>
+        <!-- Radiant star - representing greatness -->
+        <!-- Outer glow rays -->
+        <circle cx="0" cy="0" r="70" fill="#AB47BC" opacity="0.3"/>
+        <circle cx="0" cy="0" r="55" fill="#BA68C8" opacity="0.4"/>
+        <!-- Star shape -->
+        <polygon points="0,-50 15,-15 52,-15 23,8 35,45 0,22 -35,45 -23,8 -52,-15 -15,-15"
+                 fill="#FDD835" stroke="#F57F17" stroke-width="4"/>
+        <polygon points="0,-50 15,-15 52,-15 23,8 35,45 0,22 -35,45 -23,8 -52,-15 -15,-15"
+                 fill="#FFEB3B" opacity="0.6"/>
+        <!-- Center circle -->
+        <circle cx="0" cy="0" r="20" fill="#FFFFFF" stroke="#F57F17" stroke-width="4"/>
+        <circle cx="0" cy="0" r="15" fill="#FDD835" stroke="#F9A825" stroke-width="2"/>
+        <!-- Light rays -->
+        <line x1="0" y1="-75" x2="0" y2="-85" stroke="#FDD835" stroke-width="4" stroke-linecap="round"/>
+        <line x1="53" y1="-53" x2="60" y2="-60" stroke="#FDD835" stroke-width="4" stroke-linecap="round"/>
+        <line x1="75" y1="0" x2="85" y2="0" stroke="#FDD835" stroke-width="4" stroke-linecap="round"/>
+        <line x1="53" y1="53" x2="60" y2="60" stroke="#FDD835" stroke-width="4" stroke-linecap="round"/>
+        <line x1="-53" y1="-53" x2="-60" y2="-60" stroke="#FDD835" stroke-width="4" stroke-linecap="round"/>
+        <line x1="-75" y1="0" x2="-85" y2="0" stroke="#FDD835" stroke-width="4" stroke-linecap="round"/>
+        <line x1="-53" y1="53" x2="-60" y2="60" stroke="#FDD835" stroke-width="4" stroke-linecap="round"/>
       </g>
     </svg>`,
     description: 'Great People Points (GPP) accumulate to generate Great People - special units with powerful one-time abilities. Different specialists and buildings generate different types of GPP.',
@@ -314,12 +405,25 @@ export const yields = [
     icon: '⭐',
     color: '#FFA500',
     svgIcon: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#FFA500" stroke="#FF8C00" stroke-width="3"/>
+      <circle cx="100" cy="100" r="95" fill="#E65100" stroke="#BF360C" stroke-width="5"/>
       <g transform="translate(100, 100)">
-        <circle cx="0" cy="5" r="55" fill="#FFD700" stroke="#DAA520" stroke-width="3"/>
-        <polygon points="0,-45 12,-15 45,-15 18,5 30,35 0,15 -30,35 -18,5 -45,-15 -12,-15" fill="#FFEA00" stroke="#FF8C00" stroke-width="2.5"/>
-        <circle cx="0" cy="5" r="15" fill="#FF8C00" stroke="#FF6347" stroke-width="2"/>
-        <text x="0" y="15" font-family="Georgia, serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">XP</text>
+        <!-- Military badge/medal -->
+        <!-- Shield background -->
+        <path d="M 0,-60 L 45,-45 L 50,0 L 45,50 L 0,65 L -45,50 L -50,0 L -45,-45 Z"
+              fill="#1565C0" stroke="#0D47A1" stroke-width="5"/>
+        <path d="M 0,-55 L 40,-42 L 45,0 L 40,45 L 0,58 L -40,45 L -45,0 L -40,-42 Z"
+              fill="#1976D2" stroke="#0D47A1" stroke-width="2"/>
+        <!-- Star on badge -->
+        <polygon points="0,-35 8,-12 33,-12 13,2 21,25 0,10 -21,25 -13,2 -33,-12 -8,-12"
+                 fill="#FDD835" stroke="#F57F17" stroke-width="3"/>
+        <!-- Chevron stripes (rank) -->
+        <path d="M -25,15 L 0,0 L 25,15" fill="none" stroke="#FDD835" stroke-width="5" stroke-linecap="round"/>
+        <path d="M -25,28 L 0,13 L 25,28" fill="none" stroke="#FDD835" stroke-width="5" stroke-linecap="round"/>
+        <path d="M -25,41 L 0,26 L 25,41" fill="none" stroke="#FDD835" stroke-width="5" stroke-linecap="round"/>
+        <!-- Ribbon -->
+        <rect x="-10" y="-75" width="20" height="20" fill="#C62828" stroke="#B71C1C" stroke-width="3"/>
+        <polygon points="-10,-55 -10,-40 -15,-45 -10,-55" fill="#C62828" stroke="#B71C1C" stroke-width="2"/>
+        <polygon points="10,-55 10,-40 15,-45 10,-55" fill="#C62828" stroke="#B71C1C" stroke-width="2"/>
       </g>
     </svg>`,
     description: 'Experience points (XP) allow units to gain promotions, making them more powerful in combat. Units gain XP from buildings and combat victories.',
