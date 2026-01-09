@@ -120,13 +120,13 @@
   z-index: 10;
   text-align: center;
   padding: 40px;
-  animation: fadeInUp 1s ease-out;
+  animation: fadeInUp 0.5s ease-out;
 }
 
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(30px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -196,7 +196,7 @@
   color: var(--text-secondary);
   letter-spacing: 4px;
   text-transform: uppercase;
-  animation: fadeIn 1s ease-out 0.2s both;
+  animation: fadeIn 0.4s ease-out both;
 }
 
 .title-main {
@@ -218,7 +218,7 @@
     0 0 60px rgba(201, 162, 39, 0.4),
     0 4px 8px rgba(0, 0, 0, 0.5);
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-  animation: titleGlow 3s ease-in-out infinite alternate, fadeIn 1s ease-out 0.4s both;
+  animation: titleGlow 3s ease-in-out infinite alternate, fadeIn 0.4s ease-out 0.1s both;
 }
 
 @keyframes titleGlow {
@@ -241,7 +241,7 @@
   color: var(--copper);
   letter-spacing: 8px;
   text-transform: uppercase;
-  animation: fadeIn 1s ease-out 0.6s both;
+  animation: fadeIn 0.4s ease-out 0.2s both;
 }
 
 @keyframes fadeIn {
@@ -254,7 +254,7 @@
    ============================================ */
 
 .menu-section {
-  animation: fadeIn 1s ease-out 0.8s both;
+  animation: fadeIn 0.4s ease-out 0.3s both;
 }
 
 .menu-buttons {
@@ -457,7 +457,7 @@
 
 .menu-footer {
   margin-top: 60px;
-  animation: fadeIn 1s ease-out 1s both;
+  animation: fadeIn 0.4s ease-out 0.4s both;
 }
 
 .version {

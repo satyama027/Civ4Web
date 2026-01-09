@@ -81,22 +81,72 @@ Redux Toolkit store is configured but **not yet used**. Current implementation u
 
 ## Styling
 
-**Theme Colors**:
-- Primary gold: `#d4af37`
-- Brown: `#8b7355`
-- Background gradient: `#1a1a2e` to `#16213e`
-- Text: `#f0d98f`
+### Design Theme: Ancient Empire / Illuminated Manuscript
 
-**CSS Architecture**: Each page has its own CSS file. The Civilopedia uses:
-- `.category-sidebar`: Left column (200px wide)
-- `.items-sidebar`: Middle column (280px, conditionally rendered)
-- `.main-content`: Right column (flex: 1)
+The UI uses a cohesive "Ancient Empire" aesthetic inspired by illuminated manuscripts and classical antiquity.
+
+**Fonts** (Google Fonts):
+- `Cinzel`: Display font for titles and headings
+- `Crimson Text`: Body text and descriptions
+- `EB Garamond`: Elegant accents
+
+**Theme Colors** (CSS variables in `index.css`):
+- `--bg-primary`: #0a0e1a (deep indigo)
+- `--bg-secondary`: #111827
+- `--gold-primary`: #c9a227 (burnished gold)
+- `--gold-bright`: #f4d03f
+- `--gold-dark`: #8b6914
+- `--copper`: #b87333
+- `--text-primary`: #e8dcc4
+- `--text-secondary`: #a89984
+
+**CSS Architecture**: Each page has its own CSS file:
+- `MainMenu.css`: Particle effects, corner ornaments, animated title
+- `NewGame.css`: Two-column layout, styled selects, leader info panels
+- `Civilopedia.css`: Three-column progressive disclosure
 
 Scrollbars are styled consistently across all scrollable containers.
+
+## Game Options Configuration
+
+The `src/data/gameOptions.js` file contains all game setup configurations with Civ4 BTS-accurate values:
+
+### Exports
+
+| Export | Description |
+|--------|-------------|
+| `difficultyLevels` | 9 levels (Settler→Deity) with player/AI modifiers, starting units, happiness/health |
+| `mapTypes` | 10 types (Pangaea, Continents, etc.) with land percentages |
+| `mapSizes` | 6 sizes (Duel→Huge) with grid dimensions, tile counts, max players |
+| `gameSpeeds` | 4 speeds (Quick→Marathon) with production/research/culture modifiers |
+| `startingEras` | 6 eras with free techs and starting gold |
+| `climateTypes` | 5 climates with terrain distribution percentages |
+| `seaLevels` | 3 levels with water percentages |
+| `barbarianSettings` | 3 settings with spawn/strength modifiers |
+| `victoryConditions` | 6 victory types |
+| `defaultGameSettings` | Default values for new game |
+
+### Helper Functions
+
+```javascript
+import { getDifficultyConfig, getMapSizeConfig } from '../data/gameOptions';
+
+const difficulty = getDifficultyConfig('prince');
+console.log(difficulty.freeHappiness); // 4
+```
+
+### New Game Screen (`NewGame.jsx`)
+
+Two-column layout:
+- **Left**: Game Settings (difficulty, map type/size, speed, AI opponents, advanced options)
+- **Right**: Leader Selection (dropdown with "Random" option, civilization details, leader traits)
+
+Leader selection allows any leader to lead any civilization. Leaders are sorted alphabetically. Random leader is resolved at game start.
 
 ## Game Mechanics Implementation
 
 **Critical**: All formulas must match Civ4 BTS exactly. Reference the existing data files for exact mechanics:
+- `src/data/gameOptions.js`: Difficulty modifiers, game speed multipliers, map dimensions
 - `src/data/yields.js`: Contains all yield formulas
 - Each data file includes Civ4-accurate mechanics in descriptions
 
@@ -171,11 +221,14 @@ When adding/verifying game data, use these sources:
 ## Implementation Priorities
 
 Completed:
-- ✅ Main Menu UI
+- ✅ Main Menu UI (particle effects, animated title, corner ornaments)
+- ✅ New Game Setup Screen (full options, leader selection, random support)
+- ✅ Game Options Configuration (all Civ4 BTS-accurate values)
 - ✅ Civilopedia (9 categories with SVG icons)
 - ✅ Three-column interface with animations
 - ✅ Cross-linking system
 - ✅ Search functionality
+- ✅ Ancient Empire / Illuminated Manuscript design theme
 
 Next priorities:
 1. Game map rendering with Pixi.js
