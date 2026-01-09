@@ -1,18 +1,106 @@
+/* CSS Variables - Ancient Empire Theme */
+:root {
+  /* Primary Colors - Deep indigo/navy palette */
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #111827;
+  --bg-tertiary: #1a2236;
+
+  /* Accent Colors - Burnished metals */
+  --gold-bright: #f4d03f;
+  --gold-primary: #c9a227;
+  --gold-dark: #a17f1a;
+  --copper: #b87333;
+  --bronze: #cd7f32;
+
+  /* Parchment tones */
+  --parchment-light: #f5e6c8;
+  --parchment: #e8d4b0;
+  --parchment-dark: #c4a574;
+
+  /* Text */
+  --text-primary: #f0e6d2;
+  --text-secondary: #c9b896;
+  --text-muted: #8b7355;
+
+  /* Borders & Shadows */
+  --border-gold: #c9a227;
+  --border-subtle: rgba(201, 162, 39, 0.3);
+  --shadow-deep: rgba(0, 0, 0, 0.8);
+  --shadow-gold: rgba(201, 162, 39, 0.3);
+
+  /* Typography */
+  --font-display: 'Cinzel', serif;
+  --font-body: 'Crimson Text', serif;
+  --font-elegant: 'EB Garamond', serif;
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+html {
+  font-size: 16px;
+}
+
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
+}
+
+/* Selection styling */
+::selection {
+  background: var(--gold-primary);
+  color: var(--bg-primary);
+}
+
+/* Scrollbar styling - Global */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-subtle);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--gold-dark) 0%, var(--copper) 100%);
+  border-radius: 6px;
+  border: 2px solid var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--gold-primary) 0%, var(--bronze) 100%);
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--gold-primary);
+  outline-offset: 2px;
+}
+
+/* Utility classes */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
