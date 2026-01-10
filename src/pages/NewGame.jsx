@@ -77,8 +77,9 @@ const NewGame = () => {
       numOpponents: effectiveOpponents
     };
     console.log('Starting game with config:', gameConfig);
-    // TODO: Navigate to game screen with config
-    alert('Game would start with:\n' + JSON.stringify(gameConfig, null, 2));
+
+    // Navigate to game screen with config
+    navigate('/game', { state: gameConfig });
   };
 
   return (
