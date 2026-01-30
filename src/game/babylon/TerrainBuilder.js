@@ -109,8 +109,8 @@ export function buildTerrainMesh(scene, mapData, terrainRGB, material) {
       const bl = (y + 1) * vertW + x;
       const br = bl + 1;
 
-      indices.push(tl, bl, tr);
-      indices.push(tr, bl, br);
+      indices.push(tl, tr, bl);
+      indices.push(tr, br, bl);
     }
   }
 

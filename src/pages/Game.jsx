@@ -96,8 +96,12 @@ const Game = () => {
     }
 
     const babylon = createScene(canvas, mapData);
-    const material = createTerrainMaterial(babylon.scene);
+    const material = createTerrainMaterial(babylon.scene, mapData);
     const { mesh, positions } = buildTerrainMesh(babylon.scene, mapData, TERRAIN_RGB, material);
+    // Store mesh reference so shader material can swap in when textures load
+    if (material._shaderMat) {
+      material._shaderMat._terrainMesh = mesh;
+    }
     buildGridOverlay(babylon.scene, mapData, positions);
     const features = buildFeatures(babylon.scene, mapData, positions);
 
