@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Civ4web is a web-based clone of Civilization IV: Beyond the Sword. The goal is to recreate the exact Civ4 BTS game mechanics and formulas using modern web technologies.
 
-**Tech Stack**: React 18 + Vite, Redux Toolkit, React Router, Canvas 2D (map rendering)
+**Tech Stack**: React 18 + Vite, Redux Toolkit, React Router, Babylon.js 8 (3D map rendering)
 
 ## Development Commands
 
@@ -104,7 +104,7 @@ The UI uses a cohesive "Ancient Empire" aesthetic inspired by illuminated manusc
 - `MainMenu.css`: Particle effects, corner ornaments, animated title
 - `NewGame.css`: Two-column layout, styled selects, leader info panels
 - `Civilopedia.css`: Three-column progressive disclosure
-- `Game.css`: Map canvas, sidebar controls, tile info display
+- `Game.css`: Babylon.js canvas (100% width/height), sidebar controls, tile info display
 
 Scrollbars are styled consistently across all scrollable containers.
 
@@ -158,18 +158,38 @@ This project uses **square tiles** (not hexagonal) to match original Civ4 layout
 
 ### Map Generation (`src/game/mapGenerator.js`)
 
-Complete Civ4 BTS-accurate map generation system based on PerfectWorld2.py algorithms:
+Complete Civ4 BTS-accurate map generation system based on PerfectWorld2.py and Civ4 map script algorithms:
 
 **Algorithm Pipeline:**
 1. **Heightmap Generation**: Midpoint displacement (diamond-square) for fractal terrain
 2. **Plate Tectonics**: Simulates tectonic plates, raises terrain at boundaries for mountain ranges
-3. **Plot Types**: Uses altitude *differences* (not absolute) for hills/peaks - looks more natural
-4. **Climate Simulation**: Temperature based on latitude + altitude; rainfall with prevailing winds
-5. **Terrain Assignment**: Whittaker biome model (temperature × rainfall → terrain type)
-6. **River Generation**: Traces drainage paths from highlands to sea
-7. **Feature Placement**: Forests, jungles, oases, floodplains based on climate
-8. **Resource Placement**: Follows Civ4 XML rules with spacing constraints
-9. **Starting Locations**: Scores tiles for food, production, fresh water, coastal access
+3. **Center Rift** (continents/terra/mirror): Carves noisy vertical ocean channels to separate landmasses
+4. **Plot Types**: Uses altitude *differences* (not absolute) for hills/peaks - looks more natural
+5. **Polar Attenuation**: Forces ocean at top/bottom 20% of map; rows 0-2 and (height-3)-(height-1) are deterministic ocean
+6. **Rift on Plots** (continents/terra/mirror): Second pass forcing ocean in rift zone on plot array
+7. **Climate Simulation**: Temperature based on latitude + noise-warped variation (±15%); rainfall with prevailing winds + moisture noise blend (60/40)
+8. **Terrain Assignment**: Civ4 `TerrainGenerator` latitude-band model (snow ≥0.7, tundra ≥0.6, forced grass <0.1, desert/plains via fractal noise thresholds — NOT Whittaker biome)
+9. **River Generation**: Traces drainage paths from highlands to sea
+10. **Feature Placement**: Forests, jungles, oases, floodplains based on climate
+11. **Resource Placement**: Follows Civ4 XML rules with spacing constraints
+12. **Starting Locations**: Scores tiles for food, production, fresh water, coastal access
+13. **Map Shift** (continents/terra/mirror): `shiftPlotTypes()` shifts all arrays horizontally so widest ocean strip sits at the map edge, centering continents
+
+**Map Type Land Percentages** (Civ4 BTS-accurate):
+| Map Type | landPercent | Notes |
+|----------|------------|-------|
+| Pangaea | 0.58 | Single large continent |
+| Continents | 0.29 | Civ4 uses water_percent=75 (25% land) |
+| Archipelago | 0.30 | Many small islands |
+| Terra | 0.55 | Old World + New World |
+| Fractal | 0.50 | Random/unpredictable |
+| Inland Sea | 0.55 | Ring of land around central sea |
+| Lakes | 0.60 | Mostly land with lakes |
+| Oasis | 0.55 | Desert-dominant |
+| Ice Age | 0.35 | Frozen, limited habitable land |
+| Mirror | 0.50 | Symmetrical for fairness |
+
+Sea level adjusts landPercent via `landAdjustment`: low +0.06, medium 0, high -0.08.
 
 **Usage:**
 ```javascript
@@ -222,41 +242,37 @@ console.log(getMapStats(map));
 
 ### Game Screen (`src/pages/Game.jsx`)
 
-The game screen renders the generated map using Canvas 2D with two view modes:
+The game screen renders the generated map using **Babylon.js 8** with a 3D heightmap terrain mesh.
 
-**Isometric View** (default, zoom ≥ 40%):
-- Diamond-shaped tiles (128×64 pixels at 100% zoom)
-- 3D terrain with gradients and side faces for depth
-- Hills show raised bumps, peaks display mountains with snow caps
-- Trees rendered for forests/jungles with layered foliage
-- Back-to-front rendering order for proper tile overlap
+**Rendering Architecture** (`src/game/babylon/`):
 
-**Top-Down View** (zoom < 40%):
-- Simple square tiles for quick overview
-- Automatic switch when zooming out past threshold
+| Module | Purpose |
+|--------|---------|
+| `BabylonScene.js` | Engine, scene, ArcRotateCamera (Civ4-style FOV/pitch), lighting |
+| `TerrainBuilder.js` | Single continuous `VertexData` mesh from heightmap with vertex colors |
+| `TerrainMaterials.js` | Custom GLSL `ShaderMaterial` with DDS detail textures per terrain type, terrain ID texture lookup, smoothstep blending at tile borders. Falls back to `StandardMaterial` with vertex colors while textures load |
+| `TilePicker.js` | Position-based raycasting (`pickedPoint.xz` → tile coords), gold highlight quad |
+| `FeatureRenderer.js` | Thin-instanced cones for forests/jungles (single draw call), river `LineSystem` |
+
+**Terrain Mesh**: Single mesh with `(W+1)×(H+1)` vertices. Each tile = 2 triangles. Elevation averaged from adjacent tiles (peaks: 2.0-3.5, hills: 0.8-1.6, ocean: -0.4, flat land: 0-0.3). Vertex colors averaged from adjacent terrain types for smooth blending. **Triangle winding: `tl, tr, bl` / `tr, br, bl`** (clockwise when viewed from above — Babylon.js default front face).
+
+**Shader Pipeline**: Terrain ID texture (W×H `RawTexture`, RGBA, NEAREST sampling) maps each tile to a terrain index (0-6). Fragment shader samples the correct DDS detail texture, extracts luminance, and multiplies with terrain base tint color. Blending at tile edges uses `smoothstep` in a 0.3 blend zone.
+
+**DDS Textures**: Detail textures in `public/textures/terrain/*.dds` (served as static files). 7 terrain types: ocean, coast, grass, plains, desert, tundra, ice (used for snow). Missing: `hilldetail.dds` (falls back to peak), snow textures (uses ice). Original Civ4 textures from `src/assets/TerrainV2/`.
+
+**Camera**: `ArcRotateCamera` with `alpha=-PI/2` (map width runs left-right), `beta=PI/9` (~20° from vertical), FOV=42°. Radius computed to fit both map dimensions. Limits: beta 0.01 to 62° from vertical.
 
 **Controls:**
-- Trackpad/mouse drag: Pan the map
-- Zoom slider: Control zoom level (15% - 200%)
-- Sidebar checkboxes: Toggle grid, resources, rivers
+- Left-click + drag: Rotate camera
+- Right-click + drag: Pan
+- Scroll: Zoom
+- Sidebar checkboxes: Toggle grid overlay, rivers
 
-**Key Constants:**
-```javascript
-const ISO_TILE_WIDTH = 128;
-const ISO_TILE_HEIGHT = 64;
-const ISO_VIEW_THRESHOLD = 0.4; // Switch to top-down below 40% zoom
-```
+**Material Swap Strategy**: `createTerrainMaterial()` returns a `StandardMaterial` (vertex colors) immediately. A `ShaderMaterial` loads DDS textures in parallel. Once all 7 textures load, the mesh material is swapped to the shader. This avoids a blank screen during texture loading.
 
-**Coordinate Conversion:**
-```javascript
-// World to screen (isometric)
-const screenX = (tileX - tileY) * (tileWidth / 2) + offset.x;
-const screenY = (tileX + tileY) * (tileHeight / 2) + offset.y;
+**Tile Picking**: Raycasts against the terrain mesh, converts `pickedPoint.xz` to tile coordinates via `Math.floor(x + 0.5)`. A semi-transparent gold ground plane follows the hovered tile.
 
-// Screen to world (isometric)
-const tileX = ((x / (tileWidth/2)) + (y / (tileHeight/2))) / 2;
-const tileY = ((y / (tileHeight/2)) - (x / (tileWidth/2))) / 2;
-```
+**Vite Config**: `assetsInclude: ['**/*.dds']` in `vite.config.js` for DDS asset handling.
 
 ## Adding New Civilopedia Categories
 
@@ -326,7 +342,10 @@ Completed:
 - ✅ Search functionality
 - ✅ Ancient Empire / Illuminated Manuscript design theme
 - ✅ Map Generation Algorithm (heightmap, tectonics, climate, rivers, resources)
-- ✅ Game Map Rendering (Canvas 2D, isometric + top-down views)
+- ✅ Game Map Rendering (Babylon.js 3D heightmap mesh with DDS textures)
+- ✅ Terrain texture shader (GLSL ShaderMaterial with per-tile detail textures and blending)
+- ✅ Feature rendering (thin-instanced trees, river lines)
+- ✅ Tile picking and hover highlight
 
 Next priorities:
 1. City founding and management
