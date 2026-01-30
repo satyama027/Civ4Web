@@ -10,8 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@babylonjs/core": "^8.47.2",
+    "@babylonjs/materials": "^8.47.2",
     "@reduxjs/toolkit": "^2.11.2",
-    "pixi.js": "^8.15.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-redux": "^9.2.0",
