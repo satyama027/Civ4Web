@@ -399,6 +399,197 @@ function applyTectonicsToHeightmap(heightmap, tectonics, mountainScale = 0.35) {
 }
 
 // ============================================================================
+// CENTER RIFT (CONTINENT SEPARATION)
+// ============================================================================
+
+/**
+ * Applies a center rift to the heightmap to split land into separate continents.
+ * This is how Civ4's Continents.py creates multiple landmasses:
+ * it carves a noisy vertical channel through the center of the map.
+ *
+ * @param {number[][]} heightmap - Heightmap to modify
+ * @param {number} numRifts - Number of rift channels (1 for 2 continents, 2 for 3, etc.)
+ * @param {SeededRandom} rng - Random number generator
+ * @param {number} riftWidth - Width of the rift as fraction of map width (0.05-0.15)
+ * @returns {number[][]} - Modified heightmap
+ */
+function applyPolarAttenuation(plots, rng, polarSize = 0.20) {
+  const mapHeight = plots.length;
+  const mapWidth = plots[0].length;
+
+  for (let y = 0; y < mapHeight; y++) {
+    // Force the top 3 and bottom 3 rows to always be ocean (deterministic)
+    if (y < 3 || y >= mapHeight - 3) {
+      for (let x = 0; x < mapWidth; x++) {
+        plots[y][x] = PLOT.OCEAN;
+      }
+      continue;
+    }
+
+    const distFromEdge = Math.min(y, mapHeight - 1 - y) / (mapHeight * polarSize);
+    // Probability of forcing water: 1 at edge, 0 beyond polar zone
+    const t = clamp(distFromEdge, 0, 1);
+    const waterProb = 1 - t * t * (3 - 2 * t);
+
+    if (waterProb <= 0) continue;
+
+    for (let x = 0; x < mapWidth; x++) {
+      if (plots[y][x] !== PLOT.OCEAN && plots[y][x] !== PLOT.COAST) {
+        if (rng.next() < waterProb) {
+          plots[y][x] = PLOT.OCEAN;
+        }
+      }
+    }
+  }
+
+  return plots;
+}
+
+function applyCenterRiftToPlots(plots, numRifts, rng, riftWidth = 0.12) {
+  const mapHeight = plots.length;
+  const mapWidth = plots[0].length;
+
+  for (let r = 0; r < numRifts; r++) {
+    const riftCenterX = Math.floor(mapWidth * (r + 1) / (numRifts + 1));
+    const halfWidth = Math.floor(mapWidth * riftWidth / 2);
+
+    // Random walk for jagged rift
+    const riftOffsets = [];
+    let offset = 0;
+    for (let y = 0; y < mapHeight; y++) {
+      offset += (rng.next() - 0.5) * 4;
+      offset = clamp(offset, -halfWidth * 2, halfWidth * 2);
+      riftOffsets.push(Math.round(offset));
+    }
+
+    for (let y = 0; y < mapHeight; y++) {
+      const center = riftCenterX + riftOffsets[y];
+
+      for (let x = 0; x < mapWidth; x++) {
+        let dist = Math.abs(x - center);
+        dist = Math.min(dist, mapWidth - dist);
+
+        if (dist < halfWidth) {
+          // Core rift: force to ocean
+          plots[y][x] = PLOT.OCEAN;
+        } else if (dist < halfWidth * 2) {
+          // Edge: probabilistic water
+          const edgeFactor = 1 - ((dist - halfWidth) / halfWidth);
+          if (rng.next() < edgeFactor * 0.6) {
+            plots[y][x] = PLOT.OCEAN;
+          }
+        }
+      }
+    }
+  }
+
+  return plots;
+}
+
+/**
+ * Shifts all 2D map arrays horizontally so the widest ocean gap sits at the
+ * map edge.  This is Civ4's shiftPlotTypes() — it prevents continents from
+ * wrapping around the left/right seam.
+ *
+ * Algorithm: for every candidate x-offset, sum the land tiles in a vertical
+ * strip of width ~15.  The offset whose strip has the *least* land becomes
+ * the new left edge.
+ */
+function shiftPlotTypes(mapData) {
+  const { width, height, plots } = mapData;
+  const stripWidth = Math.max(5, Math.floor(width * 0.15));
+
+  let bestOffset = 0;
+  let minLand = Infinity;
+
+  for (let offset = 0; offset < width; offset++) {
+    let landCount = 0;
+    for (let y = 0; y < height; y++) {
+      for (let s = 0; s < stripWidth; s++) {
+        const x = (offset + s) % width;
+        if (plots[y][x] >= PLOT.LAND) landCount++;
+      }
+    }
+    if (landCount < minLand) {
+      minLand = landCount;
+      bestOffset = offset;
+    }
+  }
+
+  if (bestOffset === 0) return; // no shift needed
+
+  // Shift every 2D array in mapData
+  const arrayKeys = ['heightmap', 'plots', 'terrain', 'features', 'resources',
+                     'rivers', 'temperature', 'rainfall'];
+
+  for (const key of arrayKeys) {
+    const arr = mapData[key];
+    if (!arr || !Array.isArray(arr) || !Array.isArray(arr[0])) continue;
+    for (let y = 0; y < height; y++) {
+      const row = arr[y];
+      const shifted = new Array(width);
+      for (let x = 0; x < width; x++) {
+        shifted[x] = row[(x + bestOffset) % width];
+      }
+      arr[y] = shifted;
+    }
+  }
+
+  // Shift starting locations
+  if (mapData.startingLocations) {
+    for (const loc of mapData.startingLocations) {
+      loc.x = (loc.x - bestOffset + width) % width;
+    }
+  }
+}
+
+function applyCenterRift(heightmap, numRifts, rng, riftWidth = 0.12) {
+  const mapHeight = heightmap.length;
+  const mapWidth = heightmap[0].length;
+
+  for (let r = 0; r < numRifts; r++) {
+    // Position rifts evenly across the map
+    const riftCenterX = Math.floor(mapWidth * (r + 1) / (numRifts + 1));
+    const halfWidth = Math.floor(mapWidth * riftWidth / 2);
+
+    // Generate a noise offset per row to make the rift jagged
+    const riftOffsets = [];
+    let offset = 0;
+    for (let y = 0; y < mapHeight; y++) {
+      offset += (rng.next() - 0.5) * 4; // Random walk
+      offset = clamp(offset, -halfWidth * 2, halfWidth * 2);
+      riftOffsets.push(Math.round(offset));
+    }
+
+    // Carve the rift by lowering heightmap values
+    for (let y = 0; y < mapHeight; y++) {
+      const center = riftCenterX + riftOffsets[y];
+
+      for (let x = 0; x < mapWidth; x++) {
+        let nx = x;
+        // Handle world wrap
+        let dist = Math.abs(nx - center);
+        dist = Math.min(dist, mapWidth - dist);
+
+        if (dist < halfWidth) {
+          // Full depression in center of rift
+          const depthFactor = 1 - (dist / halfWidth);
+          heightmap[y][x] -= depthFactor * 0.8;
+          heightmap[y][x] = Math.max(0, heightmap[y][x]);
+        } else if (dist < halfWidth * 2) {
+          // Gradual falloff at edges
+          const edgeFactor = 1 - ((dist - halfWidth) / halfWidth);
+          heightmap[y][x] -= edgeFactor * 0.25;
+          heightmap[y][x] = Math.max(0, heightmap[y][x]);
+        }
+      }
+    }
+  }
+
+  return heightmap;
+}
+
+// ============================================================================
 // PLOT TYPE GENERATION (OCEAN/LAND/HILLS/PEAKS)
 // ============================================================================
 
@@ -523,32 +714,49 @@ function generatePlotTypes(heightmap, landPercent, hillPercent = 0.20, peakPerce
 }
 
 // ============================================================================
+// NOISE GENERATION UTILITY
+// ============================================================================
+
+/**
+ * Generates a 2D noise map using diamond-square at a smaller scale
+ * Used to add variation to temperature, rainfall, and terrain boundaries
+ */
+function generateNoiseMap(width, height, rng, roughness = 0.6) {
+  return generateHeightmap(width, height, rng, roughness);
+}
+
+// ============================================================================
 // CLIMATE SIMULATION
 // ============================================================================
 
 /**
  * Generates temperature map based on latitude and altitude
- * Colder at poles and high altitudes
+ * Uses a noise layer to warp effective latitude (like Civ4's latitude variation fractal)
  *
  * @param {number} width - Map width
  * @param {number} height - Map height
  * @param {number[][]} heightmap - Heightmap for altitude adjustment
+ * @param {SeededRandom} rng - Random number generator
  * @returns {number[][]} - Temperature [0, 1] where 1 is hottest
  */
-function generateTemperatureMap(width, height, heightmap) {
+function generateTemperatureMap(width, height, heightmap, rng) {
   const temperature = create2DArray(width, height);
+
+  // Generate latitude variation noise (like Civ4's variation fractal)
+  const latNoise = generateNoiseMap(width, height, rng, 0.5);
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      // Base temperature from latitude (equator = hot, poles = cold)
-      const latitudeNormalized = y / (height - 1); // 0 at top, 1 at bottom
-      const distFromEquator = Math.abs(latitudeNormalized - 0.5) * 2; // 0 at equator, 1 at poles
+      // Base latitude with noise-based warping
+      const latitudeNormalized = y / (height - 1);
+      // Warp latitude by ±15% using noise - breaks up horizontal bands
+      const warpedLat = clamp(latitudeNormalized + (latNoise[y][x] - 0.5) * 0.30, 0, 1);
+      const distFromEquator = Math.abs(warpedLat - 0.5) * 2;
 
       // Parabolic temperature distribution
       let temp = 1 - (distFromEquator * distFromEquator);
 
-      // Altitude reduces temperature (lapse rate ~6.5C per 1000m)
-      // In our normalized system, treat high terrain as reducing temp
+      // Altitude reduces temperature
       const altitudeEffect = heightmap[y][x] * 0.3;
       temp -= altitudeEffect;
 
@@ -631,10 +839,14 @@ function generateRainfallMap(width, height, plots, heightmap, rng) {
     }
   }
 
-  // Add some randomness
+  // Add moisture noise layer to break up uniform rainfall patterns
+  const moistureNoise = generateNoiseMap(width, height, rng, 0.55);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      rainfall[y][x] = clamp(rainfall[y][x] + (rng.next() - 0.5) * 0.2, 0, 1);
+      // Blend wind-based rainfall with noise (60% wind, 40% noise)
+      rainfall[y][x] = rainfall[y][x] * 0.6 + moistureNoise[y][x] * 0.4;
+      // Add per-tile randomness
+      rainfall[y][x] = clamp(rainfall[y][x] + (rng.next() - 0.5) * 0.15, 0, 1);
     }
   }
 
@@ -646,61 +858,95 @@ function generateRainfallMap(width, height, plots, heightmap, rng) {
 // ============================================================================
 
 /**
- * Assigns terrain types based on temperature and rainfall (Whittaker biome model)
+ * Assigns terrain types matching Civ4's CvMapGeneratorUtil.py TerrainGenerator.
  *
- * @param {number[][]} plots - Plot types
- * @param {number[][]} temperature - Temperature map
- * @param {number[][]} rainfall - Rainfall map
- * @param {Object} climateConfig - Climate configuration
- * @returns {string[][]} - Terrain type IDs
+ * Civ4 default parameters:
+ *   iDesertPercent=32, iPlainsPercent=18
+ *   fSnowLatitude=0.7, fTundraLatitude=0.6, fGrassLatitude=0.1
+ *   fDesertBottomLatitude=0.2, fDesertTopLatitude=0.5
+ *
+ * Algorithm:
+ * 1. Compute latitude per tile (0=equator, 1=pole) with fractal variation
+ * 2. Snow if lat >= 0.7, Tundra if lat >= 0.6
+ * 3. Forced grass if lat < 0.1 (tropics near equator)
+ * 4. Desert if fractal noise within desert threshold AND lat in [0.2, 0.5]
+ * 5. Plains if fractal noise within plains threshold
+ * 6. Default: grassland
+ *
+ * Uses separate fractal noise maps for desert and plains placement (not rainfall).
  */
-function assignTerrainTypes(plots, temperature, rainfall, climateConfig) {
+function assignTerrainTypes(plots, temperature, rainfall, climateConfig, rng) {
   const height = plots.length;
   const width = plots[0].length;
   const terrain = create2DArray(width, height, TERRAIN.OCEAN);
 
+  // Civ4 TerrainGenerator defaults
+  const iDesertPercent = 32;   // 32% of temperate land is desert
+  const iPlainsPercent = 18;   // 18% of temperate land is plains
+  const fSnowLatitude = 0.7;
+  const fTundraLatitude = 0.6;
+  const fGrassLatitude = 0.1;  // Forced grass in tropics
+  const fDesertBottomLatitude = 0.2;
+  const fDesertTopLatitude = 0.5;
+
+  // Generate fractal noise maps for desert and plains placement
+  // (Civ4 uses separate fractal objects for each)
+  const desertNoise = generateNoiseMap(width, height, rng, 0.5);
+  const plainsNoise = generateNoiseMap(width, height, rng, 0.5);
+  const latVariation = generateNoiseMap(width, height, rng, 0.45);
+
+  // Compute fractal thresholds: desert noise values below this percentile → desert
+  // Collect all noise values and find the threshold
+  const allDesertNoise = desertNoise.flat().sort((a, b) => a - b);
+  const allPlainsNoise = plainsNoise.flat().sort((a, b) => a - b);
+  const desertTop = allDesertNoise[Math.floor(allDesertNoise.length * iDesertPercent / 100)] || 0;
+  const plainsTop = allPlainsNoise[Math.floor(allPlainsNoise.length * iPlainsPercent / 100)] || 0;
+
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const plot = plots[y][x];
-      const temp = temperature[y][x];
-      const rain = rainfall[y][x];
 
       if (plot === PLOT.OCEAN) {
         terrain[y][x] = TERRAIN.OCEAN;
-      } else if (plot === PLOT.COAST) {
+        continue;
+      }
+      if (plot === PLOT.COAST) {
         terrain[y][x] = TERRAIN.COAST;
-      } else {
-        // Land terrain based on temperature and rainfall
-        if (temp < 0.15) {
-          // Very cold - snow
-          terrain[y][x] = TERRAIN.SNOW;
-        } else if (temp < 0.30) {
-          // Cold - tundra
-          terrain[y][x] = TERRAIN.TUNDRA;
-        } else if (temp > 0.7 && rain < 0.25) {
-          // Hot and dry - desert
-          terrain[y][x] = TERRAIN.DESERT;
-        } else if (temp > 0.5 && rain < 0.35) {
-          // Warm and dry - plains (more likely) or desert
-          terrain[y][x] = rain < 0.2 ? TERRAIN.DESERT : TERRAIN.PLAINS;
-        } else if (rain > 0.6) {
-          // Wet - grassland
-          terrain[y][x] = TERRAIN.GRASSLAND;
-        } else if (rain > 0.35) {
-          // Moderate rain - mixed
-          terrain[y][x] = temp > 0.5 ? TERRAIN.PLAINS : TERRAIN.GRASSLAND;
-        } else {
-          // Low-moderate rain
-          terrain[y][x] = TERRAIN.PLAINS;
-        }
+        continue;
+      }
+
+      // Compute latitude: 0 at equator, 1 at poles
+      const latNorm = y / (height - 1);  // 0=top, 1=bottom
+      const distFromEquator = Math.abs(latNorm - 0.5) * 2;  // 0=equator, 1=pole
+      // Apply fractal variation to latitude (±20%, like Civ4's variation fractal)
+      const lat = clamp(distFromEquator + (latVariation[y][x] - 0.5) * 0.4, 0, 1);
+
+      // 1. Snow at high latitudes
+      if (lat >= fSnowLatitude) {
+        terrain[y][x] = TERRAIN.SNOW;
+      }
+      // 2. Tundra
+      else if (lat >= fTundraLatitude) {
+        terrain[y][x] = TERRAIN.TUNDRA;
+      }
+      // 3. Forced grassland in deep tropics
+      else if (lat < fGrassLatitude) {
+        terrain[y][x] = TERRAIN.GRASSLAND;
+      }
+      // 4. Desert: fractal noise check within desert latitude band
+      else if (lat >= fDesertBottomLatitude && lat < fDesertTopLatitude &&
+               desertNoise[y][x] < desertTop) {
+        terrain[y][x] = TERRAIN.DESERT;
+      }
+      // 5. Plains: fractal noise check
+      else if (plainsNoise[y][x] < plainsTop) {
+        terrain[y][x] = TERRAIN.PLAINS;
+      }
+      // 6. Default: grassland
+      else {
+        terrain[y][x] = TERRAIN.GRASSLAND;
       }
     }
-  }
-
-  // Apply climate modifiers
-  if (climateConfig) {
-    // Adjust based on climate type percentages
-    // This is a simplified version - could be more sophisticated
   }
 
   return terrain;
@@ -1245,19 +1491,66 @@ export function generateMap(settings) {
   const tectonics = generateTectonicPlates(width, height, numPlates, rng);
   heightmap = applyTectonicsToHeightmap(heightmap, tectonics, 0.35);
 
+  // Step 2.5: Apply center rift to heightmap for continent-type maps (weakens land at rift)
+  if (mapType === 'continents' || mapType === 'terra' || mapType === 'mirror') {
+    const numRifts = mapType === 'terra' ? 1 : Math.max(1, (mapTypeConfig.continents || 2) - 1);
+    console.log(`Applying ${numRifts} center rift(s) to heightmap...`);
+    heightmap = applyCenterRift(heightmap, numRifts, rng, 0.12);
+  }
+
   // Step 3: Generate plot types (land/water/hills/peaks)
   console.log('Generating plot types...');
-  const landPercent = mapTypeConfig.landPercent * (1 - seaLevelConfig.waterPercent + 0.4);
+  const landPercent = clamp(mapTypeConfig.landPercent + (seaLevelConfig.landAdjustment || 0), 0.25, 0.75);
   const plots = generatePlotTypes(heightmap, landPercent);
+
+  // Step 3.5: Force polar water and rift separation on plots
+  console.log('Applying polar attenuation to plots...');
+  applyPolarAttenuation(plots, rng, 0.15);
+
+  if (mapType === 'continents' || mapType === 'terra' || mapType === 'mirror') {
+    const numRifts = mapType === 'terra' ? 1 : Math.max(1, (mapTypeConfig.continents || 2) - 1);
+    console.log(`Applying ${numRifts} center rift(s) to plots...`);
+    applyCenterRiftToPlots(plots, numRifts, rng, 0.12);
+  }
+
+  // Recompute coast tiles after polar/rift modifications
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (plots[y][x] === PLOT.COAST) {
+        plots[y][x] = PLOT.OCEAN;
+      }
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (plots[y][x] === PLOT.OCEAN) {
+        let nearLand = false;
+        for (let dy = -1; dy <= 1 && !nearLand; dy++) {
+          for (let dx = -1; dx <= 1 && !nearLand; dx++) {
+            let nx = x + dx;
+            let ny = y + dy;
+            if (nx < 0) nx = width - 1;
+            if (nx >= width) nx = 0;
+            if (ny >= 0 && ny < height) {
+              if (plots[ny][nx] !== PLOT.OCEAN && plots[ny][nx] !== PLOT.COAST) {
+                nearLand = true;
+              }
+            }
+          }
+        }
+        if (nearLand) plots[y][x] = PLOT.COAST;
+      }
+    }
+  }
 
   // Step 4: Generate climate maps
   console.log('Simulating climate...');
-  const temperature = generateTemperatureMap(width, height, heightmap);
+  const temperature = generateTemperatureMap(width, height, heightmap, rng);
   const rainfall = generateRainfallMap(width, height, plots, heightmap, rng);
 
   // Step 5: Assign terrain types
   console.log('Assigning terrain types...');
-  const terrain = assignTerrainTypes(plots, temperature, rainfall, climateConfig);
+  const terrain = assignTerrainTypes(plots, temperature, rainfall, climateConfig, rng);
 
   // Step 6: Generate rivers
   console.log('Generating rivers...');
@@ -1277,6 +1570,13 @@ export function generateMap(settings) {
   console.log('Finding starting locations...');
   const mapData = { terrain, plots, features, resources, rivers };
   const startingLocations = findStartingLocations(mapData, numPlayers);
+
+  // Step 10: Shift map so widest ocean gap is at the edge (Civ4's shiftPlotTypes)
+  if (mapType === 'continents' || mapType === 'terra' || mapType === 'mirror') {
+    console.log('Shifting map to center continents...');
+    const shiftData = { width, height, heightmap, plots, terrain, features, resources, rivers, temperature, rainfall, startingLocations };
+    shiftPlotTypes(shiftData);
+  }
 
   console.log('Map generation complete!');
 

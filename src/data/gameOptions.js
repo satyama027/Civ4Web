@@ -244,8 +244,8 @@ export const mapTypes = [
     id: 'continents',
     name: 'Continents',
     description: 'Several large landmasses separated by oceans',
-    landPercent: 0.40,
-    waterPercent: 0.60,
+    landPercent: 0.29,
+    waterPercent: 0.71,
     continents: 2,                        // Default 2, can be 2-6
     continentOptions: [2, 3, 4, 5, 6],
     allowSmallIslands: true,
@@ -283,8 +283,8 @@ export const mapTypes = [
     id: 'terra',
     name: 'Terra',
     description: 'Old World start with a New World continent to discover',
-    landPercent: 0.45,
-    waterPercent: 0.55,
+    landPercent: 0.55,
+    waterPercent: 0.45,
     continents: 2,
     worldWrap: 'cylindrical',
     startingPositions: 'old_world_only',  // All players start in Old World
@@ -303,8 +303,8 @@ export const mapTypes = [
     id: 'fractal',
     name: 'Fractal',
     description: 'Unpredictable coastlines with random continent shapes',
-    landPercent: 0.40,
-    waterPercent: 0.60,
+    landPercent: 0.50,
+    waterPercent: 0.50,
     continents: 'random',                 // Randomly determined
     worldWrap: 'cylindrical',             // Can be cylindrical, flat, or toroidal
     worldWrapOptions: ['cylindrical', 'flat', 'toroidal'],
@@ -403,8 +403,8 @@ export const mapTypes = [
     id: 'mirror',
     name: 'Mirror',
     description: 'Symmetrical map mirrored for competitive fairness',
-    landPercent: 0.40,
-    waterPercent: 0.60,
+    landPercent: 0.50,
+    waterPercent: 0.50,
     continents: 2,                        // One per "side"
     worldWrap: 'cylindrical',
     startingPositions: 'mirrored',        // Mirrored starting positions
@@ -677,6 +677,7 @@ export const seaLevels = [
     name: 'Low',
     description: 'More land, less water',
     waterPercent: 0.30,
+    landAdjustment: 0.06,
     coastModifier: 0.70
   },
   {
@@ -684,6 +685,7 @@ export const seaLevels = [
     name: 'Medium',
     description: 'Balanced land and water',
     waterPercent: 0.40,
+    landAdjustment: 0,
     coastModifier: 1.00
   },
   {
@@ -691,6 +693,7 @@ export const seaLevels = [
     name: 'High',
     description: 'More water, less land',
     waterPercent: 0.55,
+    landAdjustment: -0.08,
     coastModifier: 1.30
   }
 ];
