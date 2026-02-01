@@ -2,6 +2,9 @@ import { MeshBuilder, StandardMaterial, Color3, Matrix, Vector3, Quaternion } fr
 
 /**
  * Build instanced trees for forest/jungle tiles and river line meshes.
+ * Rivers use edge-based model: each tile has isNOfRiver (north edge) and
+ * isWOfRiver (west edge), rendered as line segments along tile boundaries.
+ *
  * @param {import('@babylonjs/core').Scene} scene
  * @param {Object} mapData
  * @param {Float32Array} positions - vertex positions from terrain mesh
@@ -22,6 +25,11 @@ export function buildFeatures(scene, mapData, positions) {
     return sum / 4;
   }
 
+  function getVertexY(vx, vy) {
+    if (vx < 0 || vx >= vertW || vy < 0 || vy >= H + 1) return 0;
+    return positions[(vy * vertW + vx) * 3 + 1];
+  }
+
   // --- Trees (forests & jungles) ---
   const forestMat = new StandardMaterial('forestMat', scene);
   forestMat.diffuseColor = new Color3(0.15, 0.45, 0.15);
@@ -31,7 +39,6 @@ export function buildFeatures(scene, mapData, positions) {
   jungleMat.diffuseColor = new Color3(0.08, 0.35, 0.08);
   disposables.push(jungleMat);
 
-  // Prototype cone for trees
   const treeCone = MeshBuilder.CreateCylinder('treeCone', {
     diameterTop: 0,
     diameterBottom: 0.35,
@@ -52,13 +59,11 @@ export function buildFeatures(scene, mapData, positions) {
   jungleCone.material = jungleMat;
   disposables.push(jungleCone);
 
-  // Deterministic pseudo-random from tile coords
   function tileRand(x, y, idx) {
     const n = (x * 374761393 + y * 668265263 + idx * 1274126177) & 0x7fffffff;
     return (n % 1000) / 1000;
   }
 
-  // Collect instance matrices
   const forestMatrices = [];
   const jungleMatrices = [];
 
@@ -72,7 +77,7 @@ export function buildFeatures(scene, mapData, positions) {
       const isForest = tile.feature === 'forest';
       if (!isForest && !isJungle) continue;
 
-      const treeCount = 2 + Math.floor(tileRand(x, y, 99) * 2); // 2-3 trees
+      const treeCount = 2 + Math.floor(tileRand(x, y, 99) * 2);
       const target = isJungle ? jungleMatrices : forestMatrices;
 
       for (let t = 0; t < treeCount; t++) {
@@ -90,7 +95,6 @@ export function buildFeatures(scene, mapData, positions) {
     }
   }
 
-  // Apply thin instances
   if (forestMatrices.length > 0) {
     const buf = new Float32Array(forestMatrices.length * 16);
     forestMatrices.forEach((m, i) => m.copyToArray(buf, i * 16));
@@ -107,31 +111,36 @@ export function buildFeatures(scene, mapData, positions) {
     jungleCone.isPickable = false;
   }
 
-  // --- Rivers ---
+  // --- Rivers (edge-based) ---
+  // Rivers flow along tile edges. Each tile can have:
+  //   isNOfRiver: river along north edge (between vertex (x,y) and (x+1,y))
+  //   isWOfRiver: river along west edge (between vertex (x,y) and (x,y+1))
   const riverPaths = [];
+  const riverOffset = 0.06; // slight Y offset above terrain
+
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const tile = mapData.getTile(x, y);
-      if (!tile || !tile.hasRiver) continue;
+      if (!tile) continue;
 
-      const ty = getTileY(x, y) + 0.04;
-      const cx = x;
-      const cz = y;
+      // North edge: between vertices (x,y) and (x+1,y)
+      if (tile.isNOfRiver) {
+        const y1 = getVertexY(x, y) + riverOffset;
+        const y2 = getVertexY(x + 1, y) + riverOffset;
+        riverPaths.push([
+          new Vector3(x - 0.5, y1, y - 0.5),
+          new Vector3(x + 0.5, y2, y - 0.5)
+        ]);
+      }
 
-      // Connect to neighboring river tiles
-      const neighbors = [[1, 0], [0, 1]]; // only right and down to avoid duplicates
-      for (const [dx, dz] of neighbors) {
-        const nx = x + dx;
-        const nz = y + dz;
-        if (nx >= W || nz >= H) continue;
-        const neighbor = mapData.getTile(nx, nz);
-        if (neighbor && neighbor.hasRiver) {
-          const ny = getTileY(nx, nz) + 0.04;
-          riverPaths.push([
-            new Vector3(cx, ty, cz),
-            new Vector3(nx, ny, nz)
-          ]);
-        }
+      // West edge: between vertices (x,y) and (x,y+1)
+      if (tile.isWOfRiver) {
+        const y1 = getVertexY(x, y) + riverOffset;
+        const y2 = getVertexY(x, y + 1) + riverOffset;
+        riverPaths.push([
+          new Vector3(x - 0.5, y1, y - 0.5),
+          new Vector3(x - 0.5, y2, y + 0.5)
+        ]);
       }
     }
   }
