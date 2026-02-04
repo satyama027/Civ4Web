@@ -23,8 +23,10 @@ import {
 } from '../data/gameOptions';
 
 // Import CyFractal and utilities from new modular structure
-import { createFractal, FRAC_POLAR, FRAC_CENTER_RIFT } from './mapgen/CyFractal.js';
+import { createFractal, FRAC_POLAR } from './mapgen/CyFractal.js';
 import { SeededRandom, create2DArray, clamp } from './mapgen/utils.js';
+// Import FractalWorld for plot type generation (Milestone 2)
+import { createFractalWorld } from './mapgen/FractalWorld.js';
 
 // ============================================================================
 // CONSTANTS
@@ -63,92 +65,13 @@ const PLOT = {
   PEAK: 4
 };
 
-// Note: FRAC_POLAR, FRAC_CENTER_RIFT, SeededRandom, create2DArray, clamp, lerp
-// are now imported from ./mapgen/CyFractal.js and ./mapgen/utils.js
-// createFractal is also imported from ./mapgen/CyFractal.js
+// Note: Fractal utilities (CyFractal, FRAC_POLAR) and helpers (SeededRandom, etc.)
+// are now imported from ./mapgen/ modules.
+// FractalWorld handles plot type generation using Civ4's three-fractal algorithm.
 
 // ============================================================================
-// FRACTALWORLD - PLOT TYPE GENERATION (Civ4's FractalWorld class)
+// COAST DETECTION (called after FractalWorld plot generation)
 // ============================================================================
-
-/**
- * Generates plot types using Civ4's FractalWorld algorithm:
- * - continent fractal for land/water
- * - hills fractal with two percentile bands
- * - peaks fractal (finer grain, subset of hills)
- *
- * @param {number} width - Map width
- * @param {number} height - Map height
- * @param {SeededRandom} rng - RNG
- * @param {Object} params - Map type parameters
- * @returns {number[][]} - Plot types array
- */
-function generatePlotTypes(width, height, rng, params) {
-  const {
-    waterPercent = 75,
-    continentGrain = 2,
-    grainAmount = 3,
-    polar = true,
-    centerRift = false,
-    hillGroupOneBase = 25,
-    hillGroupOneRange = 9,
-    hillGroupTwoBase = 75,
-    hillGroupTwoRange = 9,
-    peakPercent = 4
-  } = params;
-
-  // Build fractal flags
-  let contFlags = 0;
-  if (polar) contFlags |= FRAC_POLAR;
-  if (centerRift) contFlags |= FRAC_CENTER_RIFT;
-
-  // Generate three independent fractals
-  const continentsFrac = createFractal(width, height, continentGrain, rng, contFlags);
-  const hillsFrac = createFractal(width, height, grainAmount, rng, 0);
-  const peaksFrac = createFractal(width, height, grainAmount + 1, rng, 0);
-
-  // Compute thresholds from percentiles
-  const waterThreshold = continentsFrac.getHeightFromPercent(waterPercent);
-
-  // Hills use two bands
-  const hillsBottom1 = hillsFrac.getHeightFromPercent(hillGroupOneBase - hillGroupOneRange);
-  const hillsTop1 = hillsFrac.getHeightFromPercent(hillGroupOneBase + hillGroupOneRange);
-  const hillsBottom2 = hillsFrac.getHeightFromPercent(hillGroupTwoBase - hillGroupTwoRange);
-  const hillsTop2 = hillsFrac.getHeightFromPercent(hillGroupTwoBase + hillGroupTwoRange);
-  const peakThreshold = peaksFrac.getHeightFromPercent(peakPercent);
-
-  const plots = create2DArray(width, height, PLOT.LAND);
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const contVal = continentsFrac.getHeight(x, y);
-
-      if (contVal <= waterThreshold) {
-        plots[y][x] = PLOT.OCEAN;
-      } else {
-        const hillVal = hillsFrac.getHeight(x, y);
-        const inHillBand = (hillVal >= hillsBottom1 && hillVal <= hillsTop1) ||
-                           (hillVal >= hillsBottom2 && hillVal <= hillsTop2);
-
-        if (inHillBand) {
-          const peakVal = peaksFrac.getHeight(x, y);
-          if (peakVal <= peakThreshold) {
-            plots[y][x] = PLOT.PEAK;
-          } else {
-            plots[y][x] = PLOT.HILLS;
-          }
-        } else {
-          plots[y][x] = PLOT.LAND;
-        }
-      }
-    }
-  }
-
-  // Coast detection: ocean adjacent to land
-  addCoastTiles(plots, width, height);
-
-  return plots;
-}
 
 /**
  * Marks ocean tiles adjacent to land as coast.
@@ -1080,9 +1003,22 @@ export function generateMap(settings) {
     params.peakPercent = 6;
   }
 
-  // Step 1: Generate plot types using FractalWorld model
+  // Step 1: Generate plot types using FractalWorld class (Milestone 2)
   console.log('Generating plot types (FractalWorld)...');
-  const plots = generatePlotTypes(width, height, rng, params);
+  const plots = createFractalWorld(width, height, rng, {
+    waterPercent: params.waterPercent,
+    continentGrain: params.continentGrain,
+    grainAmount: params.grainAmount,
+    polar: params.polar,
+    centerRift: params.centerRift,
+    hillGroupOneRange: params.hillGroupOneRange,
+    hillGroupTwoRange: params.hillGroupTwoRange,
+    peakPercent: params.peakPercent,
+    // Note: doShift is handled in post-processing step below
+    doShift: false
+  });
+  // Add coast tiles (ocean adjacent to land becomes coast)
+  addCoastTiles(plots, width, height);
 
   // Generate a heightmap for the 3D renderer (visual elevation variation)
   // This is NOT used for game logic — purely for rendering smooth terrain
