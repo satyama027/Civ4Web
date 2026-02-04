@@ -22,6 +22,10 @@ import {
   getSeaLevelConfig
 } from '../data/gameOptions';
 
+// Import CyFractal and utilities from new modular structure
+import { createFractal, FRAC_POLAR, FRAC_CENTER_RIFT } from './mapgen/CyFractal.js';
+import { SeededRandom, create2DArray, clamp } from './mapgen/utils.js';
+
 // ============================================================================
 // CONSTANTS
 // ============================================================================
@@ -59,224 +63,9 @@ const PLOT = {
   PEAK: 4
 };
 
-// Fractal flags (matching Civ4's CyFractal)
-const FRAC_POLAR = 1;
-const FRAC_CENTER_RIFT = 2;
-
-// ============================================================================
-// SEEDED RANDOM NUMBER GENERATOR
-// ============================================================================
-
-class SeededRandom {
-  constructor(seed) {
-    this.seed = seed >>> 0;
-    this.state = this.seed;
-  }
-
-  next() {
-    let t = this.state += 0x6D2B79F5;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  }
-
-  nextInt(min, max) {
-    return Math.floor(this.next() * (max - min + 1)) + min;
-  }
-
-  nextFloat(min, max) {
-    return this.next() * (max - min) + min;
-  }
-
-  shuffle(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(this.next() * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-  }
-}
-
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-function create2DArray(width, height, defaultValue = 0) {
-  return Array.from({ length: height }, () =>
-    Array.from({ length: width }, () =>
-      typeof defaultValue === 'function' ? defaultValue() : defaultValue
-    )
-  );
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-// ============================================================================
-// CYFRACTAL-EQUIVALENT FRACTAL GENERATOR
-// ============================================================================
-
-/**
- * Generates a fractal heightmap matching Civ4's CyFractal behavior.
- *
- * Civ4's CyFractal uses a diamond-square algorithm at a resolution controlled
- * by (fracXExp - grain). Lower grain = larger features (continents), higher
- * grain = finer features (hills, desert patches).
- *
- * @param {number} width - Target map width
- * @param {number} height - Target map height
- * @param {number} grain - Feature size control (1=huge, 2=large, 3=medium, 4=fine, 5=very fine, 6=ultra fine)
- * @param {SeededRandom} rng - Seeded RNG
- * @param {number} flags - Bitmask: FRAC_POLAR | FRAC_CENTER_RIFT
- * @returns {CyFractal} - Fractal object with getHeight() and getHeightFromPercent()
- */
-function createFractal(width, height, grain, rng, flags = 0) {
-  // Civ4 uses fracXExp=7 (128) and fracYExp=6 (64) as base resolution
-  // Grain reduces this: effective resolution = 2^(7-grain)+1
-  const fracExp = Math.max(3, 7 - grain); // min exp of 3 (8x8 grid)
-  const size = Math.pow(2, fracExp) + 1;
-
-  // Generate diamond-square fractal at internal resolution
-  const grid = new Float64Array(size * size);
-
-  // Seed corners
-  grid[0] = rng.next();
-  grid[size - 1] = rng.next();
-  grid[(size - 1) * size] = rng.next();
-  grid[(size - 1) * size + (size - 1)] = rng.next();
-
-  let step = size - 1;
-  let scale = 1.0;
-  const roughness = 0.55;
-
-  while (step > 1) {
-    const half = step >> 1;
-
-    // Diamond step
-    for (let y = half; y < size - 1; y += step) {
-      for (let x = half; x < size - 1; x += step) {
-        const avg = (
-          grid[(y - half) * size + (x - half)] +
-          grid[(y - half) * size + (x + half)] +
-          grid[(y + half) * size + (x - half)] +
-          grid[(y + half) * size + (x + half)]
-        ) / 4;
-        grid[y * size + x] = avg + (rng.next() - 0.5) * scale;
-      }
-    }
-
-    // Square step
-    for (let y = 0; y < size; y += half) {
-      for (let x = ((y / half) % 2 === 0 ? half : 0); x < size; x += step) {
-        let sum = 0, count = 0;
-        if (y >= half) { sum += grid[(y - half) * size + x]; count++; }
-        if (y + half < size) { sum += grid[(y + half) * size + x]; count++; }
-        if (x >= half) { sum += grid[y * size + (x - half)]; count++; }
-        if (x + half < size) { sum += grid[y * size + (x + half)]; count++; }
-        grid[y * size + x] = sum / count + (rng.next() - 0.5) * scale;
-      }
-    }
-
-    step = half;
-    scale *= roughness;
-  }
-
-  // Normalize to [0, 255] (Civ4's CyFractal uses integer heights 0-255)
-  let min = Infinity, max = -Infinity;
-  for (let i = 0; i < grid.length; i++) {
-    if (grid[i] < min) min = grid[i];
-    if (grid[i] > max) max = grid[i];
-  }
-  const range = max - min || 1;
-  for (let i = 0; i < grid.length; i++) {
-    grid[i] = ((grid[i] - min) / range) * 255;
-  }
-
-  // Resample to target map dimensions
-  const data = create2DArray(width, height, 0);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const srcX = (x / Math.max(1, width - 1)) * (size - 1);
-      const srcY = (y / Math.max(1, height - 1)) * (size - 1);
-      const x0 = Math.floor(srcX);
-      const y0 = Math.floor(srcY);
-      const x1 = Math.min(x0 + 1, size - 1);
-      const y1 = Math.min(y0 + 1, size - 1);
-      const xf = srcX - x0;
-      const yf = srcY - y0;
-      data[y][x] = lerp(
-        lerp(grid[y0 * size + x0], grid[y0 * size + x1], xf),
-        lerp(grid[y1 * size + x0], grid[y1 * size + x1], xf),
-        yf
-      );
-    }
-  }
-
-  // Apply FRAC_POLAR: attenuate toward top/bottom edges
-  if (flags & FRAC_POLAR) {
-    const polarZone = 0.15; // top/bottom 15% gets attenuated
-    for (let y = 0; y < height; y++) {
-      const latFromEdge = Math.min(y, height - 1 - y) / (height - 1);
-      if (latFromEdge < polarZone) {
-        const factor = latFromEdge / polarZone; // 0 at edge, 1 at boundary
-        const attenuation = factor * factor; // quadratic falloff
-        for (let x = 0; x < width; x++) {
-          data[y][x] *= attenuation;
-        }
-      }
-    }
-  }
-
-  // Apply FRAC_CENTER_RIFT: lower heights along vertical center
-  if (flags & FRAC_CENTER_RIFT) {
-    const centerX = width / 2;
-    const riftWidth = width * 0.12; // rift zone width
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let dist = Math.abs(x - centerX);
-        dist = Math.min(dist, width - dist); // world wrap
-        if (dist < riftWidth) {
-          const factor = dist / riftWidth; // 0 at center, 1 at edge
-          const attenuation = factor * factor; // quadratic
-          data[y][x] *= attenuation;
-        }
-      }
-    }
-  }
-
-  // Build sorted heights array for percentile lookups
-  const allHeights = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      allHeights.push(data[y][x]);
-    }
-  }
-  allHeights.sort((a, b) => a - b);
-
-  return {
-    data,
-    width,
-    height,
-
-    getHeight(x, y) {
-      // World wrap x
-      while (x < 0) x += width;
-      while (x >= width) x -= width;
-      y = clamp(y, 0, height - 1);
-      return data[y][x];
-    },
-
-    getHeightFromPercent(percent) {
-      const idx = clamp(Math.floor(allHeights.length * percent / 100), 0, allHeights.length - 1);
-      return allHeights[idx];
-    }
-  };
-}
+// Note: FRAC_POLAR, FRAC_CENTER_RIFT, SeededRandom, create2DArray, clamp, lerp
+// are now imported from ./mapgen/CyFractal.js and ./mapgen/utils.js
+// createFractal is also imported from ./mapgen/CyFractal.js
 
 // ============================================================================
 // FRACTALWORLD - PLOT TYPE GENERATION (Civ4's FractalWorld class)
@@ -834,6 +623,7 @@ function traceRiver(startX, startY, elevation, plots, rivers, width, height, rng
  * Gets the tiles that share a given corner.
  * Corner (cx, cy) is shared by tiles (cx-1,cy-1), (cx,cy-1), (cx-1,cy), (cx,cy).
  */
+// eslint-disable-next-line no-unused-vars
 function getCornerTiles(cx, cy, width, height) {
   const tiles = [];
   for (let dy = -1; dy <= 0; dy++) {
