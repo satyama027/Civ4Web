@@ -421,8 +421,8 @@ _tileHasRiver(rivers, x, y) {
   if (tile && (tile.isNOfRiver || tile.isWOfRiver)) return true;
 
   // Check south neighbor's north edge (= this tile's south edge)
-  if (y > 0) {
-    const south = rivers[(y - 1) * W + x];
+  if (y < H - 1) {
+    const south = rivers[(y + 1) * W + x];
     if (south && south.isNOfRiver) return true;
   }
 
