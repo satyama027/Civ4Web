@@ -8,8 +8,8 @@
 | 2. FractalWorld Class | ✅ Complete | 2026-02-04 |
 | 3. HintedWorld Class | ✅ Complete | 2026-02-04 |
 | 4. MultilayeredFractal Class | ✅ Complete | 2026-02-05 |
-| 5. TerrainGenerator | ⬚ Not Started | |
-| 6. FeatureGenerator | ⬚ Not Started | |
+| 5. TerrainGenerator | ✅ Complete | 2026-02-05 |
+| 6. FeatureGenerator | ✅ Complete | 2026-02-05 |
 | 7. River Generation + Lakes | ⬚ Not Started | |
 | 8. Bonus/Resource Placement | ⬚ Not Started | |
 | 9. Starting Plots + Normalization | ⬚ Not Started | |
