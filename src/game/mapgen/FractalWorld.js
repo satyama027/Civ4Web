@@ -137,10 +137,10 @@ export class FractalWorld {
   initFractal(rng, params = {}) {
     const {
       continent_grain = 2,
-      rift_grain = -1,
-      has_center_rift = false,
+      rift_grain = 2,
+      has_center_rift = true,
       invert_heights = false,
-      polar = true
+      polar = false
     } = params;
 
     // Build base flags
@@ -197,9 +197,9 @@ export class FractalWorld {
    */
   generatePlotTypes(rng, params = {}) {
     const {
-      water_percent = 75,
+      water_percent = 78,
       grain_amount = 3,
-      shift_plot_types = false
+      shift_plot_types = true
     } = params;
 
     // Hook for subclass overrides
@@ -453,14 +453,22 @@ export class FractalWorld {
 
     for (let y = 0; y < this.iNumPlotsY; y++) {
       for (let x = 0; x < this.iNumPlotsX; x++) {
-        // Source coordinates (wrap around)
-        const srcX = ((x - xshift) % this.iNumPlotsX + this.iNumPlotsX) % this.iNumPlotsX;
-        const srcY = ((y - yshift) % this.iNumPlotsY + this.iNumPlotsY) % this.iNumPlotsY;
+        // Source X always wraps (Civ4: destX + xshift)
+        const srcX = ((x + xshift) % this.iNumPlotsX + this.iNumPlotsX) % this.iNumPlotsX;
 
-        const dstIdx = y * this.iNumPlotsX + x;
-        const srcIdx = srcY * this.iNumPlotsX + srcX;
+        // Source Y: wrap if wrapY, otherwise direct offset
+        let srcY;
+        if (this.wrapY) {
+          srcY = ((y + yshift) % this.iNumPlotsY + this.iNumPlotsY) % this.iNumPlotsY;
+        } else {
+          srcY = y + yshift;
+          if (srcY < 0 || srcY >= this.iNumPlotsY) {
+            this.plotTypes[y * this.iNumPlotsX + x] = PLOT.OCEAN;
+            continue;
+          }
+        }
 
-        this.plotTypes[dstIdx] = oldPlots[srcIdx];
+        this.plotTypes[y * this.iNumPlotsX + x] = oldPlots[srcY * this.iNumPlotsX + srcX];
       }
     }
   }
@@ -472,8 +480,8 @@ export class FractalWorld {
    * is at the map edge, centering the land masses.
    */
   shiftPlotTypes() {
-    const xshift = this.findBestSplitX();
-    const yshift = 0; // Y shift rarely used in Civ4
+    const xshift = this.wrapX ? this.findBestSplitX() : 0;
+    const yshift = this.wrapY ? this.findBestSplitY() : 0;
 
     this.shiftPlotTypesBy(xshift, yshift);
   }

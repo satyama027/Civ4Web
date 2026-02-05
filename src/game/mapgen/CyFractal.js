@@ -117,8 +117,9 @@ export class CyFractal {
    * @param {number} flags - Bitmask of FRAC_* flags
    */
   fracInitRifts(riftsFrac, hasCenterRift, mapWidth, mapHeight, grain, rng, flags = 0) {
-    // Generate base fractal (without rift flag - rift is handled separately)
-    const baseFlags = flags & ~FRAC_CENTER_RIFT;
+    // Generate base fractal with only wrap flags — polar, invert, and center rift
+    // are applied once after rift modulation to avoid double attenuation
+    const baseFlags = flags & (FRAC_WRAP_X | FRAC_WRAP_Y);
     this.fracInit(mapWidth, mapHeight, grain, rng, baseFlags);
 
     // Modulate by rift fractal
