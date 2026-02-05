@@ -6,8 +6,8 @@
 |-----------|--------|----------------|
 | 1. CyFractal Engine | ✅ Complete | 2026-02-04 |
 | 2. FractalWorld Class | ✅ Complete | 2026-02-04 |
-| 3. HintedWorld Class | ⬚ Not Started | |
-| 4. MultilayeredFractal Class | ⬚ Not Started | |
+| 3. HintedWorld Class | ✅ Complete | 2026-02-04 |
+| 4. MultilayeredFractal Class | ✅ Complete | 2026-02-05 |
 | 5. TerrainGenerator | ⬚ Not Started | |
 | 6. FeatureGenerator | ⬚ Not Started | |
 | 7. River Generation + Lakes | ⬚ Not Started | |
