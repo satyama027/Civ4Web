@@ -1,0 +1,326 @@
+/**
+ * Shared helpers for Civ4 BTS map scripts.
+ *
+ * Provides utility functions used by all four core scripts:
+ * continents, fractal, archipelago, pangaea.
+ */
+
+import { PLOT } from '../FractalWorld.js';
+import { TERRAIN } from '../TerrainGenerator.js';
+import { getMapSizeConfig } from '../../../data/gameOptions.js';
+
+// ============================================================================
+// Grid Size & Settings Resolution
+// ============================================================================
+
+/**
+ * Convert grid cell dimensions to plot dimensions (each grid cell = 4×4 plots).
+ * @param {string} worldSize - e.g. 'standard'
+ * @param {Object} gridTable - { worldSize: [gridW, gridH] }
+ * @returns {{ width: number, height: number }}
+ */
+export function resolveGridSize(worldSize, gridTable) {
+  const grid = gridTable[worldSize];
+  return {
+    width: grid[0] * 4,
+    height: grid[1] * 4
+  };
+}
+
+/**
+ * Get default map dimensions from gameOptions.js.
+ * @param {string} worldSize - e.g. 'standard'
+ * @returns {{ width: number, height: number }}
+ */
+export function getDefaultDimensions(worldSize) {
+  const cfg = getMapSizeConfig(worldSize);
+  if (!cfg) {
+    const fallback = getMapSizeConfig('standard');
+    return { width: fallback.tilesWidth, height: fallback.tilesHeight };
+  }
+  return { width: cfg.tilesWidth, height: cfg.tilesHeight };
+}
+
+/**
+ * Map sea level setting to Civ4 seaLevelChange integer.
+ * @param {string} seaLevel - 'low', 'medium', or 'high'
+ * @returns {number}
+ */
+export function resolveSeaLevelChange(seaLevel) {
+  switch (seaLevel) {
+    case 'low':    return -5;
+    case 'medium': return 0;
+    case 'high':   return 5;
+    default:       return 0;
+  }
+}
+
+/**
+ * Return climate-dependent parameters for terrain/feature generators.
+ * @param {string} climate
+ * @returns {{ hillRange: number, peakPercent: number, jungleLatitude: number }}
+ */
+export function resolveClimateSettings(climate) {
+  const configs = {
+    tropical:  { hillRange: 8,  peakPercent: 5,  jungleLatitude: 0.40 },
+    temperate: { hillRange: 9,  peakPercent: 4,  jungleLatitude: 0.15 },
+    rocky:     { hillRange: 12, peakPercent: 7,  jungleLatitude: 0.05 },
+    arid:      { hillRange: 7,  peakPercent: 3,  jungleLatitude: 0.00 },
+    cold:      { hillRange: 9,  peakPercent: 4,  jungleLatitude: 0.00 }
+  };
+  return configs[climate] || configs.temperate;
+}
+
+/**
+ * World-size-dependent grain offset for generators.
+ * @param {string} worldSize
+ * @returns {number}
+ */
+export function getWorldSizeGrainAdjust(worldSize) {
+  switch (worldSize) {
+    case 'duel':
+    case 'tiny':     return 0;
+    case 'small':    return 0;
+    case 'standard': return 1;
+    case 'large':    return 1;
+    case 'huge':     return 2;
+    default:         return 0;
+  }
+}
+
+// ============================================================================
+// Land Area Analysis
+// ============================================================================
+
+/**
+ * BFS flood fill to find connected land regions.
+ * Returns the area ID of the largest landmass.
+ *
+ * @param {number[]} plotTypes - 1D array of PLOT values
+ * @param {number} W - map width
+ * @param {number} H - map height
+ * @param {boolean} wrapX - whether map wraps horizontally
+ * @returns {{ areaId: number, areas: number[], areaSizes: Object }}
+ */
+export function findBiggestLandArea(plotTypes, W, H, wrapX) {
+  const areas = new Array(W * H).fill(-1);
+  let nextId = 0;
+  const areaSizes = {};
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = y * W + x;
+      if (areas[idx] !== -1) continue;
+      if (plotTypes[idx] === PLOT.OCEAN || plotTypes[idx] === PLOT.COAST) continue;
+
+      const areaId = nextId++;
+      let size = 0;
+      const queue = [{ x, y }];
+      areas[idx] = areaId;
+
+      while (queue.length > 0) {
+        const { x: cx, y: cy } = queue.shift();
+        size++;
+        for (const [dx, dy] of [[0, -1], [0, 1], [1, 0], [-1, 0]]) {
+          let nx = cx + dx;
+          let ny = cy + dy;
+          if (wrapX) nx = ((nx % W) + W) % W;
+          else if (nx < 0 || nx >= W) continue;
+          if (ny < 0 || ny >= H) continue;
+          const nIdx = ny * W + nx;
+          if (areas[nIdx] !== -1) continue;
+          if (plotTypes[nIdx] === PLOT.OCEAN || plotTypes[nIdx] === PLOT.COAST) continue;
+          areas[nIdx] = areaId;
+          queue.push({ x: nx, y: ny });
+        }
+      }
+      areaSizes[areaId] = size;
+    }
+  }
+
+  let biggestId = 0;
+  let biggestSize = 0;
+  for (const [id, size] of Object.entries(areaSizes)) {
+    if (size > biggestSize) {
+      biggestSize = size;
+      biggestId = parseInt(id);
+    }
+  }
+
+  return { areaId: biggestId, areas, areaSizes };
+}
+
+// ============================================================================
+// Coastal Peak Removal (Archipelago)
+// ============================================================================
+
+/**
+ * Convert any peak tile adjacent to ocean/coast to hills.
+ * Used by Archipelago to counterbalance extra peaks.
+ *
+ * @param {number[]} plotTypes1D - 1D plot array (mutated in place)
+ * @param {number} W - map width
+ * @param {number} H - map height
+ * @param {boolean} wrapX - whether map wraps horizontally
+ */
+export function removeCoastalPeaks(plotTypes1D, W, H, wrapX) {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = y * W + x;
+      if (plotTypes1D[idx] !== PLOT.PEAK) continue;
+
+      let isCoastal = false;
+      for (let dy = -1; dy <= 1 && !isCoastal; dy++) {
+        for (let dx = -1; dx <= 1 && !isCoastal; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          let nx = x + dx;
+          let ny = y + dy;
+          if (wrapX) nx = ((nx % W) + W) % W;
+          else if (nx < 0 || nx >= W) continue;
+          if (ny < 0 || ny >= H) continue;
+          const nPlot = plotTypes1D[ny * W + nx];
+          if (nPlot === PLOT.OCEAN || nPlot === PLOT.COAST) {
+            isCoastal = true;
+          }
+        }
+      }
+
+      if (isCoastal) {
+        plotTypes1D[idx] = PLOT.HILLS;
+      }
+    }
+  }
+}
+
+// ============================================================================
+// City Site Scoring (for Archipelago regional starts)
+// ============================================================================
+
+/**
+ * Score a tile as a potential city site using BFC (big fat cross) analysis.
+ * Simplified version of StartingPlots._scoreSingleTile().
+ *
+ * @param {number} cx - city x
+ * @param {number} cy - city y
+ * @param {number[]} plotTypes1D
+ * @param {string[]} terrain1D
+ * @param {(string|null)[]} features1D
+ * @param {(string|null)[]} bonuses1D
+ * @param {number} W - map width
+ * @param {number} H - map height
+ * @param {boolean} wrapX
+ * @returns {number} score
+ */
+export function scoreCitySite(cx, cy, plotTypes1D, terrain1D, features1D,
+                               bonuses1D, W, H, wrapX) {
+  let score = 0;
+
+  // BFC offsets (radius 2, excluding corners-of-corners)
+  const BFC_OFFSETS = [];
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      if (Math.abs(dx) === 2 && Math.abs(dy) === 2) continue; // skip far corners
+      BFC_OFFSETS.push([dx, dy]);
+    }
+  }
+
+  for (const [dx, dy] of BFC_OFFSETS) {
+    let nx = cx + dx;
+    let ny = cy + dy;
+    if (wrapX) nx = ((nx % W) + W) % W;
+    else if (nx < 0 || nx >= W) continue;
+    if (ny < 0 || ny >= H) continue;
+
+    const idx = ny * W + nx;
+    const plot = plotTypes1D[idx];
+    const terr = terrain1D[idx];
+    const feat = features1D[idx];
+    const bonus = bonuses1D[idx];
+
+    if (plot === PLOT.OCEAN || plot === PLOT.COAST) {
+      if (bonus) score += 2;
+      score += 1; // coastal access
+      continue;
+    }
+
+    if (plot === PLOT.PEAK) continue; // unusable
+
+    // Base terrain yields
+    if (terr === TERRAIN.GRASSLAND) score += 3;
+    else if (terr === TERRAIN.PLAINS) score += 2;
+    else if (terr === TERRAIN.DESERT) score += 0;
+    else if (terr === TERRAIN.TUNDRA) score += 1;
+    else if (terr === TERRAIN.SNOW) score += 0;
+
+    // Hills bonus
+    if (plot === PLOT.HILLS) score += 1;
+
+    // Feature bonus
+    if (feat === 'forest' || feat === 'jungle') score += 1;
+
+    // Resource bonus
+    if (bonus) score += 3;
+  }
+
+  return score;
+}
+
+// ============================================================================
+// Map Result Builder
+// ============================================================================
+
+/**
+ * Convert 1D arrays to the standard 2D map result format.
+ *
+ * @param {number} W - map width
+ * @param {number} H - map height
+ * @param {Object} settings - original generation settings
+ * @param {number[]} plotTypes1D
+ * @param {string[]} terrain1D
+ * @param {(string|null)[]} features1D
+ * @param {(string|null)[]} bonuses1D
+ * @param {Object[]} rivers1D
+ * @param {boolean[]} lakes1D
+ * @param {Array<{x:number, y:number}>} starts
+ * @returns {Object} map result
+ */
+export function buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
+                                bonuses1D, rivers1D, lakes1D, starts) {
+  const to2D = (arr) => Array.from({ length: H }, (_, y) =>
+    Array.from({ length: W }, (_, x) => arr[y * W + x])
+  );
+
+  return {
+    width: W,
+    height: H,
+    seed: settings.seed,
+    settings,
+    plots: to2D(plotTypes1D),
+    terrain: to2D(terrain1D),
+    features: to2D(features1D),
+    resources: to2D(bonuses1D),
+    rivers: to2D(rivers1D),
+    lakes: to2D(lakes1D),
+    startingLocations: starts,
+    getTile(x, y) {
+      const wx = ((x % W) + W) % W;
+      if (y < 0 || y >= H) return null;
+      return {
+        plot: this.plots[y][wx],
+        terrain: this.terrain[y][wx],
+        feature: this.features[y][wx],
+        resource: this.resources[y][wx],
+        river: this.rivers[y][wx],
+        isLake: this.lakes[y][wx]
+      };
+    },
+    getElevation(x, y) {
+      const wx = ((x % W) + W) % W;
+      if (y < 0 || y >= H) return 'FLAT';
+      const p = this.plots[y][wx];
+      if (p === PLOT.PEAK) return 'PEAKS';
+      if (p === PLOT.HILLS) return 'HILLS';
+      return 'FLAT';
+    }
+  };
+}
