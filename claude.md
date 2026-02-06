@@ -149,47 +149,54 @@ Leader selection allows any leader to lead any civilization. Leaders are sorted 
 **Critical**: All formulas must match Civ4 BTS exactly. Reference the existing data files for exact mechanics:
 - `src/data/gameOptions.js`: Difficulty modifiers, game speed multipliers, map dimensions
 - `src/data/yields.js`: Contains all yield formulas
-- `src/game/mapGenerator.js`: Complete map generation algorithms
+- `src/game/mapGenerator.js`: Re-export wrapper for modular map generation system
 - Each data file includes Civ4-accurate mechanics in descriptions
 
 ### Square Grid vs Hexagonal
 
 This project uses **square tiles** (not hexagonal) to match original Civ4 layout.
 
-### Map Generation (`src/game/mapGenerator.js`)
+### Map Generation (`src/game/mapgen/`)
 
-Complete Civ4 BTS-accurate map generation system based on PerfectWorld2.py and Civ4 map script algorithms:
+Modular Civ4 BTS-accurate map generation system. Entry point dispatches to 10 per-map-type scripts, each implementing the full Civ4 pipeline using shared engine classes.
 
-**Algorithm Pipeline:**
-1. **Heightmap Generation**: Midpoint displacement (diamond-square) for fractal terrain
-2. **Plate Tectonics**: Simulates tectonic plates, raises terrain at boundaries for mountain ranges
-3. **Center Rift** (continents/terra/mirror): Carves noisy vertical ocean channels to separate landmasses
-4. **Plot Types**: Uses altitude *differences* (not absolute) for hills/peaks - looks more natural
-5. **Polar Attenuation**: Forces ocean at top/bottom 20% of map; rows 0-2 and (height-3)-(height-1) are deterministic ocean
-6. **Rift on Plots** (continents/terra/mirror): Second pass forcing ocean in rift zone on plot array
-7. **Climate Simulation**: Temperature based on latitude + noise-warped variation (±15%); rainfall with prevailing winds + moisture noise blend (60/40)
-8. **Terrain Assignment**: Civ4 `TerrainGenerator` latitude-band model (snow ≥0.7, tundra ≥0.6, forced grass <0.1, desert/plains via fractal noise thresholds — NOT Whittaker biome)
-9. **River Generation**: Traces drainage paths from highlands to sea
-10. **Feature Placement**: Forests, jungles, oases, floodplains based on climate
-11. **Resource Placement**: Follows Civ4 XML rules with spacing constraints
-12. **Starting Locations**: Scores tiles for food, production, fresh water, coastal access
-13. **Map Shift** (continents/terra/mirror): `shiftPlotTypes()` shifts all arrays horizontally so widest ocean strip sits at the map edge, centering continents
+**Architecture:**
+- `src/game/mapGenerator.js` — Thin re-export wrapper (backward compatibility)
+- `src/game/mapgen/index.js` — Entry point: `generateMap()`, heightmap, output adapter
+- `src/game/mapgen/scripts/*.js` — 10 map scripts (one per map type)
+- `src/game/mapgen/*.js` — Engine classes
 
-**Map Type Land Percentages** (Civ4 BTS-accurate):
-| Map Type | landPercent | Notes |
-|----------|------------|-------|
-| Pangaea | 0.58 | Single large continent |
-| Continents | 0.29 | Civ4 uses water_percent=75 (25% land) |
-| Archipelago | 0.30 | Many small islands |
-| Terra | 0.55 | Old World + New World |
-| Fractal | 0.50 | Random/unpredictable |
-| Inland Sea | 0.55 | Ring of land around central sea |
-| Lakes | 0.60 | Mostly land with lakes |
-| Oasis | 0.55 | Desert-dominant |
-| Ice Age | 0.35 | Frozen, limited habitable land |
-| Mirror | 0.50 | Symmetrical for fairness |
+**Imports** (unchanged from old API):
+```javascript
+import { generateMap, getMapStats, TERRAIN } from '../game/mapGenerator';
+```
 
-Sea level adjusts landPercent via `landAdjustment`: low +0.06, medium 0, high -0.08.
+**Map Scripts:**
+| Script | File | Key Features |
+|--------|------|-------------|
+| Continents | `continents.js` | FractalWorld with center rift, shift |
+| Fractal | `fractal.js` | Generic FractalWorld, random grain |
+| Archipelago | `archipelago.js` | MultilayeredFractal island regions |
+| Pangaea | `pangaea.js` | 5 subtypes (standard, snaky, shoreline, etc.) |
+| Terra | `terra.js` | 12+ MultilayeredFractal regions, Old/New World |
+| Inland Sea | `inlandSea.js` | HintedWorld ring, no X-wrap, custom rivers |
+| Lakes | `lakes.js` | Inverted fractal, water clamped 7-14% |
+| Oasis | `oasis.js` | All-land base, 4-band terrain, Nile rivers |
+| Ice Age | `iceAge.js` | Wide/short grid, aggressive ice, custom terrain |
+| Mirror | `mirror.js` | Half-map + multi-stage mirroring pipeline |
+
+**Engine Classes:**
+| Class | File | Purpose |
+|-------|------|---------|
+| `CyFractal` | `CyFractal.js` | Diamond-square fractal (grain, flags, hints) |
+| `FractalWorld` | `FractalWorld.js` | 3-fractal plot type generation |
+| `HintedWorld` | `HintedWorld.js` | Block-hint continent placement |
+| `MultilayeredFractal` | `MultilayeredFractal.js` | Multi-region generation |
+| `TerrainGenerator` | `TerrainGenerator.js` | Latitude-band terrain assignment |
+| `FeatureGenerator` | `FeatureGenerator.js` | Forest/jungle/ice placement |
+| `RiverGenerator` | `RiverGenerator.js` | Edge-based rivers & lakes |
+| `BonusGenerator` | `BonusGenerator.js` | Civ4 XML-style resource placement |
+| `StartingPlots` | `StartingPlots.js` | 8-pass starting location scoring |
 
 **Usage:**
 ```javascript
@@ -220,23 +227,21 @@ console.log(getMapStats(map));
 | `generatePangaea/Continents/etc.` | Convenience functions for specific map types |
 | `mapToAscii(mapData)` | Debug visualization |
 | `getMapStats(mapData)` | Statistics (land %, terrain counts, resources) |
-| `TERRAIN`, `FEATURE`, `ELEVATION` | Constant enums matching terrainTypes.js |
+| `TERRAIN`, `FEATURE`, `ELEVATION` | Constant enums |
 
 **Map Data Structure:**
 ```javascript
 {
   width, height, seed, settings,
-  heightmap: number[][],      // 0-1 normalized elevation
+  heightmap: number[][],      // 0-1 normalized elevation (visual only)
   plots: number[][],          // OCEAN/COAST/LAND/HILLS/PEAK
   terrain: string[][],        // Terrain type IDs
   features: string[][],       // Feature IDs (null if none)
   resources: string[][],      // Resource IDs (null if none)
-  rivers: Object[][],         // { hasRiver, flowDirection, riverSize }
-  temperature: number[][],    // 0-1 (0=cold, 1=hot)
-  rainfall: number[][],       // 0-1 (0=dry, 1=wet)
+  rivers: Object[][],         // { isNOfRiver, isWOfRiver, riverNSDirection, riverWEDirection }
   startingLocations: [{x, y}],
-  getTile(x, y): Object,      // Helper with world-wrap
-  getElevation(x, y): string  // FLAT/HILLS/PEAKS
+  getTile(x, y): Object,      // Helper with world-wrap, computed booleans, river field mapping
+  getElevation(x, y): string  // 'flat'/'hills'/'peaks'
 }
 ```
 
