@@ -154,16 +154,16 @@ export class CyFractal {
       }
     }
 
-    // Re-normalize after modulation
-    this._normalizeGrid();
-
-    // Apply remaining flags (polar, invert)
+    // Apply remaining attenuations (polar) — no intermediate normalize
     if (flags & FRAC_POLAR) {
       this._applyPolar();
     }
     if (flags & FRAC_INVERT_HEIGHTS) {
       this._applyInvert();
     }
+
+    // Single normalize after rift modulation + all attenuations compose
+    this._normalizeGrid();
 
     // Invalidate cache
     this.sortedHeights = null;
@@ -477,7 +477,12 @@ export class CyFractal {
   }
 
   /**
-   * Apply flag-based post-processing
+   * Apply flag-based post-processing.
+   * Attenuations (polar, center rift) are applied multiplicatively first,
+   * then a single normalization pass restores the [0, 255] range.
+   * This matches Civ4's C++ CyFractal behavior where attenuations compose
+   * before normalization, preventing intermediate normalizations from
+   * diluting the polar/rift effects.
    * @private
    */
   _applyFlags(flags) {
@@ -487,14 +492,19 @@ export class CyFractal {
     if (flags & FRAC_CENTER_RIFT) {
       this._applyCenterRift();
     }
+    if (flags & (FRAC_POLAR | FRAC_CENTER_RIFT)) {
+      this._normalizeGrid();
+    }
     if (flags & FRAC_INVERT_HEIGHTS) {
       this._applyInvert();
     }
   }
 
   /**
-   * Apply polar attenuation using sinusoidal falloff
-   * Heights are multiplied by sin(PI * y / height)
+   * Apply polar attenuation using sinusoidal falloff.
+   * Heights are multiplied by sin(PI * y / height).
+   * No normalization here — caller (_applyFlags / fracInitRifts)
+   * does a single normalize after all attenuations compose.
    * @private
    */
   _applyPolar() {
@@ -508,14 +518,13 @@ export class CyFractal {
         this.grid[y * w + x] *= factor;
       }
     }
-
-    // Re-normalize after attenuation
-    this._normalizeGrid();
   }
 
   /**
-   * Apply center rift attenuation
-   * Creates ~12% width rift zone at horizontal center with quadratic falloff
+   * Apply center rift attenuation.
+   * Creates ~25% width rift zone at horizontal center with cubic falloff.
+   * No normalization here — caller does a single normalize after all
+   * attenuations compose.
    * @private
    */
   _applyCenterRift() {
@@ -540,9 +549,6 @@ export class CyFractal {
         }
       }
     }
-
-    // Re-normalize after attenuation
-    this._normalizeGrid();
   }
 
   /**

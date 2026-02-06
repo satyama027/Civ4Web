@@ -39,8 +39,8 @@ export function setupTilePicking(scene, canvas, mapData, positions, onHover, onC
   }
 
   function pointToTile(point) {
-    const tx = Math.floor(point.x + 0.5);
-    const ty = Math.floor(point.z + 0.5);
+    const tx = Math.floor(point.x);
+    const ty = Math.floor(point.z);
     if (tx >= 0 && tx < W && ty >= 0 && ty < H) {
       return { x: tx, y: ty };
     }
@@ -53,7 +53,7 @@ export function setupTilePicking(scene, canvas, mapData, positions, onHover, onC
       const tile = pointToTile(hit.pickedPoint);
       if (tile) {
         const avgY = getTileY(tile.x, tile.y);
-        highlight.position.set(tile.x, avgY + 0.05, tile.y);
+        highlight.position.set(tile.x + 0.5, avgY + 0.05, tile.y + 0.5);
         highlight.isVisible = true;
         onHover(tile);
         return;

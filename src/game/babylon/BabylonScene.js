@@ -1,4 +1,4 @@
-import { Engine, Scene, ArcRotateCamera, HemisphericLight, DirectionalLight, Vector3, Color4 } from '@babylonjs/core';
+import { Engine, Scene, ArcRotateCamera, HemisphericLight, DirectionalLight, Vector3, Color3, Color4, MeshBuilder, StandardMaterial } from '@babylonjs/core';
 
 /**
  * Create and initialize a Babylon.js scene for a flat rectangular map.
@@ -57,6 +57,17 @@ export function createScene(canvas, mapData) {
   const sun = new DirectionalLight('sun', new Vector3(-1, -2, 1).normalize(), scene);
   sun.intensity = 0.8;
 
+  // Ocean background plane — covers area beyond terrain mesh so no black is visible
+  const oceanBg = MeshBuilder.CreateGround('oceanBg', {
+    width: mapData.width * 4,
+    height: mapData.height * 4
+  }, scene);
+  oceanBg.position = new Vector3(centerX, -0.4, centerZ);
+  const oceanMat = new StandardMaterial('oceanBgMat', scene);
+  oceanMat.diffuseColor = new Color3(0.10, 0.29, 0.48);
+  oceanBg.material = oceanMat;
+  oceanBg.isPickable = false;
+
   engine.runRenderLoop(() => scene.render());
 
   const onResize = () => engine.resize();
@@ -69,6 +80,8 @@ export function createScene(canvas, mapData) {
     dispose: () => {
       window.removeEventListener('resize', onResize);
       engine.stopRenderLoop();
+      oceanMat.dispose();
+      oceanBg.dispose();
       scene.dispose();
       engine.dispose();
     }

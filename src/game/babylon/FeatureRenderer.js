@@ -89,7 +89,7 @@ export function buildFeatures(scene, mapData, positions) {
         target.push(Matrix.Compose(
           new Vector3(scale, scale, scale),
           Quaternion.Identity(),
-          new Vector3(x + ox, treeY, y + oz)
+          new Vector3(x + 0.5 + ox, treeY, y + 0.5 + oz)
         ));
       }
     }
@@ -128,8 +128,8 @@ export function buildFeatures(scene, mapData, positions) {
         const y1 = getVertexY(x, y) + riverOffset;
         const y2 = getVertexY(x + 1, y) + riverOffset;
         riverPaths.push([
-          new Vector3(x - 0.5, y1, y - 0.5),
-          new Vector3(x + 0.5, y2, y - 0.5)
+          new Vector3(x, y1, y),
+          new Vector3(x + 1, y2, y)
         ]);
       }
 
@@ -138,8 +138,8 @@ export function buildFeatures(scene, mapData, positions) {
         const y1 = getVertexY(x, y) + riverOffset;
         const y2 = getVertexY(x, y + 1) + riverOffset;
         riverPaths.push([
-          new Vector3(x - 0.5, y1, y - 0.5),
-          new Vector3(x - 0.5, y2, y + 0.5)
+          new Vector3(x, y1, y),
+          new Vector3(x, y2, y + 1)
         ]);
       }
     }

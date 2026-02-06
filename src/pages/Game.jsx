@@ -6,6 +6,7 @@ import { TERRAIN_RGB, createTerrainMaterial } from '../game/babylon/TerrainMater
 import { buildTerrainMesh, buildGridOverlay } from '../game/babylon/TerrainBuilder';
 import { setupTilePicking } from '../game/babylon/TilePicker';
 import { buildFeatures } from '../game/babylon/FeatureRenderer';
+import { setupEdgeScrolling } from '../game/babylon/EdgeScroller';
 import '../styles/Game.css';
 
 // Legend colors matching terrain materials
@@ -114,9 +115,12 @@ const Game = () => {
       () => {} // onClick: future use
     );
 
-    babylonRef.current = { ...babylon, features, picker };
+    const edgeScroller = setupEdgeScrolling(babylon.scene, canvas, babylon.camera, mapData);
+
+    babylonRef.current = { ...babylon, features, picker, edgeScroller };
 
     return () => {
+      edgeScroller.dispose();
       picker.dispose();
       features.dispose();
       babylon.dispose();
@@ -144,6 +148,7 @@ const Game = () => {
   // Regenerate map
   const handleRegenerate = () => {
     if (babylonRef.current) {
+      if (babylonRef.current.edgeScroller) babylonRef.current.edgeScroller.dispose();
       if (babylonRef.current.picker) babylonRef.current.picker.dispose();
       if (babylonRef.current.features) babylonRef.current.features.dispose();
       babylonRef.current.dispose();
