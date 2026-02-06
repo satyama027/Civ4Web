@@ -5,10 +5,14 @@
  * grain (feature size), flags (wrapping, polar attenuation, rift), and
  * optional rift/hint modulation.
  *
- * This is the foundational fractal class used by all map generation:
- * - FractalWorld uses 3 CyFractal instances (continents, hills, peaks)
- * - TerrainGenerator uses CyFractal for desert/plains/variation fractals
- * - FeatureGenerator uses CyFractal for jungle/forest placement
+ * Grid is always at full resolution (2^fracXExp+1 × 2^fracYExp+1).
+ * Grain controls the initial seed spacing within that grid:
+ *   seed spacing = 2^(fracExp - grain)
+ * Lower grain → larger spacing → bigger features (continents).
+ * Higher grain → smaller spacing → finer features (terrain detail).
+ *
+ * This matches Civ4's CyFractal behavior where the fractal grid size
+ * never changes — only the initial seed pattern varies with grain.
  *
  * References:
  * - Civ4 SDK: CyFractal class
@@ -67,9 +71,12 @@ export class CyFractal {
   /**
    * Initialize fractal with diamond-square algorithm
    *
+   * Grid is always at full resolution (2^fracXExp+1 × 2^fracYExp+1).
+   * Grain controls the initial seed point spacing within the grid.
+   *
    * @param {number} mapWidth - Target map width in tiles
    * @param {number} mapHeight - Target map height in tiles
-   * @param {number} grain - Feature size control (1=huge, 6=fine)
+   * @param {number} grain - Feature size control (1=huge features, 6=fine features)
    * @param {SeededRandom} rng - Seeded random number generator
    * @param {number} flags - Bitmask of FRAC_* flags
    */
@@ -77,12 +84,16 @@ export class CyFractal {
     this.mapWidth = mapWidth;
     this.mapHeight = mapHeight;
 
-    // Calculate internal grid resolution based on grain
-    // Higher grain = smaller grid = finer features
-    const effectiveXExp = Math.max(2, this.fracXExp - grain);
-    const effectiveYExp = Math.max(2, this.fracYExp - grain);
-    this.gridWidth = Math.pow(2, effectiveXExp) + 1;
-    this.gridHeight = Math.pow(2, effectiveYExp) + 1;
+    // Grid always at full resolution (matching Civ4 behavior)
+    this.gridWidth = Math.pow(2, this.fracXExp) + 1;
+    this.gridHeight = Math.pow(2, this.fracYExp) + 1;
+
+    // Grain controls initial seed spacing, not grid resolution.
+    // seedStep = 2^(fracExp - grain), clamped so we always have at least 2 seeds.
+    const seedExpX = clamp(this.fracXExp - grain, 0, this.fracXExp - 1);
+    const seedExpY = clamp(this.fracYExp - grain, 0, this.fracYExp - 1);
+    const seedStepX = Math.pow(2, seedExpX);
+    const seedStepY = Math.pow(2, seedExpY);
 
     // Allocate grid
     this.grid = new Float64Array(this.gridWidth * this.gridHeight);
@@ -90,7 +101,7 @@ export class CyFractal {
     // Generate diamond-square fractal
     const wrapX = (flags & FRAC_WRAP_X) !== 0;
     const wrapY = (flags & FRAC_WRAP_Y) !== 0;
-    this._generateDiamondSquare(rng, wrapX, wrapY);
+    this._generateDiamondSquare(rng, wrapX, wrapY, seedStepX, seedStepY);
 
     // Normalize to [0, 255]
     this._normalizeGrid();
@@ -182,11 +193,9 @@ export class CyFractal {
     this.mapWidth = mapWidth;
     this.mapHeight = mapHeight;
 
-    // Calculate grid dimensions
-    const effectiveXExp = Math.max(2, this.fracXExp - grain);
-    const effectiveYExp = Math.max(2, this.fracYExp - grain);
-    this.gridWidth = Math.pow(2, effectiveXExp) + 1;
-    this.gridHeight = Math.pow(2, effectiveYExp) + 1;
+    // Grid always at full resolution
+    this.gridWidth = Math.pow(2, this.fracXExp) + 1;
+    this.gridHeight = Math.pow(2, this.fracYExp) + 1;
 
     const w = this.gridWidth;
     const h = this.gridHeight;
@@ -223,10 +232,16 @@ export class CyFractal {
       }
     }
 
+    // Grain controls seed spacing for the diamond-square
+    const seedExpX = clamp(this.fracXExp - grain, 0, this.fracXExp - 1);
+    const seedExpY = clamp(this.fracYExp - grain, 0, this.fracYExp - 1);
+    const seedStepX = Math.pow(2, seedExpX);
+    const seedStepY = Math.pow(2, seedExpY);
+
     // Generate base diamond-square fractal
     const wrapX = (flags & FRAC_WRAP_X) !== 0;
     const wrapY = (flags & FRAC_WRAP_Y) !== 0;
-    this._generateDiamondSquare(rng, wrapX, wrapY);
+    this._generateDiamondSquare(rng, wrapX, wrapY, seedStepX, seedStepY);
 
     // Normalize base fractal
     this._normalizeGrid();
@@ -319,33 +334,50 @@ export class CyFractal {
   // ==========================================================================
 
   /**
-   * Generate fractal using diamond-square algorithm
+   * Generate fractal using diamond-square algorithm.
+   *
+   * Seed points are placed at the given spacing, then diamond-square
+   * fills in all intermediate grid points down to 1-cell resolution.
+   *
+   * @param {SeededRandom} rng
+   * @param {boolean} wrapX
+   * @param {boolean} wrapY
+   * @param {number} seedStepX - Initial seed spacing in X
+   * @param {number} seedStepY - Initial seed spacing in Y
    * @private
    */
-  _generateDiamondSquare(rng, wrapX, wrapY) {
+  _generateDiamondSquare(rng, wrapX, wrapY, seedStepX, seedStepY) {
     const w = this.gridWidth;
     const h = this.gridHeight;
     const grid = this.grid;
 
-    // Initialize corners with random values [0, 1)
-    grid[0] = rng.next();
-    grid[w - 1] = rng.next();
-    grid[(h - 1) * w] = rng.next();
-    grid[(h - 1) * w + (w - 1)] = rng.next();
+    // 1. Place seed points at the grain-determined spacing
+    for (let y = 0; y < h; y += seedStepY) {
+      for (let x = 0; x < w; x += seedStepX) {
+        grid[y * w + x] = rng.next();
+      }
+    }
 
-    // If wrapping, ensure edge consistency
+    // Ensure the last column/row are seeded (they should be, since
+    // seedStep always divides gridSize-1 evenly as both are powers of 2)
+    // Handle wrapping: matching edges
     if (wrapX) {
-      grid[w - 1] = grid[0];
-      grid[(h - 1) * w + (w - 1)] = grid[(h - 1) * w];
+      for (let y = 0; y < h; y += seedStepY) {
+        grid[y * w + (w - 1)] = grid[y * w];
+      }
     }
     if (wrapY) {
-      grid[(h - 1) * w] = grid[0];
-      grid[(h - 1) * w + (w - 1)] = grid[w - 1];
+      for (let x = 0; x < w; x += seedStepX) {
+        grid[(h - 1) * w + x] = grid[x];
+      }
+    }
+    if (wrapX && wrapY) {
+      grid[(h - 1) * w + (w - 1)] = grid[0];
     }
 
-    // Diamond-square iterations
-    let stepX = w - 1;
-    let stepY = h - 1;
+    // 2. Diamond-square iterations from seed spacing down to 1
+    let stepX = seedStepX;
+    let stepY = seedStepY;
     let scale = 1.0;
     const roughness = 0.55;
 
@@ -353,7 +385,7 @@ export class CyFractal {
       const halfX = Math.max(1, Math.floor(stepX / 2));
       const halfY = Math.max(1, Math.floor(stepY / 2));
 
-      // Diamond step: compute center of each square
+      // Diamond step: compute center of each cell
       for (let y = halfY; y < h - 1; y += Math.max(1, stepY)) {
         for (let x = halfX; x < w - 1; x += Math.max(1, stepX)) {
           const tl = grid[(y - halfY) * w + (x - halfX)];
@@ -370,11 +402,6 @@ export class CyFractal {
         // Offset X based on row to create diamond pattern
         const xStart = ((y / halfY) % 2 === 0) ? halfX : 0;
         for (let x = xStart; x < w; x += Math.max(1, stepX)) {
-          // Skip corners (already set)
-          if (grid[y * w + x] !== 0 && (y === 0 || y === h - 1) && (x === 0 || x === w - 1)) {
-            continue;
-          }
-
           let sum = 0;
           let count = 0;
 
@@ -495,7 +522,7 @@ export class CyFractal {
     const w = this.gridWidth;
     const h = this.gridHeight;
     const centerX = w / 2;
-    const riftWidth = w * 0.12; // 12% of width
+    const riftWidth = w * 0.25; // 25% of width — wide enough to guarantee ocean channel
 
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
@@ -504,8 +531,11 @@ export class CyFractal {
         dist = Math.min(dist, w - dist); // Handle wrap
 
         if (dist < riftWidth) {
-          // Quadratic falloff: 0 at center, 1 at rift edge
-          const factor = (dist / riftWidth) * (dist / riftWidth);
+          // Cubic falloff: 0 at center, 1 at rift edge.
+          // Cubic keeps strong suppression over most of the rift zone,
+          // recovering only near the edge for organic coastlines.
+          const t = dist / riftWidth;
+          const factor = t * t * t;
           this.grid[y * w + x] *= factor;
         }
       }

@@ -1,22 +1,18 @@
 /**
  * RiverGenerator - Civ4-compatible river placement and lake detection
  *
- * Ports Civ4's C++ CvMapGenerator::addRivers() and addLakes().
- * Rivers flow along tile edges (not through tile centers) using an
- * altitude-based downhill tracing algorithm.
+ * Direct port of CvMapGenerator::addRivers() and doRiver() from Civ4 BTS SDK.
+ * Uses Civ4's exact 4-pass system, getRiverValueAtPlot() altitude formula,
+ * and findWater() distance checks.
  *
  * Pipeline order:
  *   generatePlotTypes() → generateTerrain() → addRivers() → addLakes() → addFeatures()
  *
- * Subclasses can override:
- * - getRiverStartCardinalDirection() for custom river source selection
- * - getRiverAltitude() for custom altitude formulas (e.g., Inland Sea)
- *
  * References:
- * - Civ4 SDK: CvMapGenerator::addRivers(), doRiver(), getRiverStartCardinalDirection()
- * - Civ4 SDK: CvMapGenerator::addLakes()
- * - docs/Milestone-7-RiverGenerator-Spec.md
- * - docs/MapGen-Rewrite-Plan.md §Milestone 7
+ * - Civ4 SDK: CvMapGenerator.cpp addRivers(), doRiver(), getRiverValueAtPlot()
+ * - Civ4 SDK: CvMap.cpp findWater()
+ * - Civ4 SDK: CvPlot.cpp getInlandCorner(), hasCoastAtSECorner()
+ * - Civ4 BTS GlobalDefines.xml: PLOTS_PER_RIVER_EDGE, RIVER_SOURCE_MIN_*
  */
 
 import { PLOT } from './FractalWorld.js';
@@ -61,15 +57,29 @@ export const FLOW = {
 };
 
 // ============================================================================
+// CIV4 CONSTANTS (from GlobalDefines.xml)
+// ============================================================================
+
+/** Max ratio: 1 river edge per this many land tiles */
+const PLOTS_PER_RIVER_EDGE = 12;
+
+/** Min distance from existing fresh water (river) to start a new river */
+const RIVER_SOURCE_MIN_RIVER_RANGE = 4;
+
+/** Min distance from sea water to start a new river */
+const RIVER_SOURCE_MIN_SEAWATER_RANGE = 2;
+
+// ============================================================================
 // RIVER GENERATOR CLASS
 // ============================================================================
 
 /**
- * Places rivers and detects lakes on a map using Civ4's altitude-based model.
+ * Places rivers and detects lakes using Civ4's exact 4-pass algorithm.
  *
- * Rivers start at the highest-altitude land tiles and trace downhill toward
- * water, placing edge segments along tile boundaries. Each tile stores river
- * data on its north and west edges.
+ * Pass 0: Hills/peaks only, strict distance checks
+ * Pass 1: Non-coastal land with 1/8 random chance, strict distance checks
+ * Pass 2: Hills/peaks, relaxed distances, area density cap
+ * Pass 3: Any land, relaxed distances, area density cap
  *
  * @example
  * const rg = new RiverGenerator(width, height);
@@ -98,13 +108,16 @@ export class RiverGenerator {
   // ==========================================================================
 
   /**
-   * Place rivers on the map using Civ4's altitude-based downhill tracing.
+   * Place rivers on the map using Civ4's exact 4-pass system.
    *
-   * Algorithm:
-   * 1. Build altitude map from plot types, terrain, and features
-   * 2. Sort all tiles by altitude (highest first)
-   * 3. For each tile: if land, no existing river, and has a downhill neighbor,
-   *    trace a river from it to the coast
+   * From CvMapGenerator::addRivers() in CvMapGenerator.cpp:
+   * - Pass 0: Hills/peaks, riverSourceRange=4, seaWaterRange=2
+   * - Pass 1: Non-coastal land + 1/8 chance, same ranges
+   * - Pass 2: Hills/peaks + area density cap, halved ranges
+   * - Pass 3: Any land + area density cap, halved ranges
+   *
+   * Each eligible tile must NOT have fresh water within riverSourceRange
+   * and must NOT have sea water within seaWaterRange.
    *
    * @param {import('./utils.js').SeededRandom} rng - Seeded random number generator
    * @param {number[]} plotTypes - 1D array of PLOT enum values (y * width + x)
@@ -127,35 +140,67 @@ export class RiverGenerator {
       };
     }
 
-    // 2. Build altitude map
-    const altitudes = this._buildAltitudeMap(rng, plotTypes, terrain, features);
+    // 2. Pre-compute river values (Civ4's getRiverValueAtPlot)
+    const riverValues = this._buildRiverValues(plotTypes);
 
-    // 3. Build sorted tile list (highest altitude first)
-    const tiles = [];
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        tiles.push({ x, y, altitude: altitudes[y * W + x] });
-      }
+    // 3. Count land tiles for density cap (passes 2-3)
+    let totalLandTiles = 0;
+    for (let i = 0; i < W * H; i++) {
+      if (plotTypes[i] >= PLOT.LAND) totalLandTiles++;
     }
-    tiles.sort((a, b) => b.altitude - a.altitude);
 
-    // 4. For each tile (highest to lowest): try to start a river
-    for (const tile of tiles) {
-      const { x, y } = tile;
-      const idx = y * W + x;
+    // Track total river edges placed
+    let totalRiverEdges = 0;
 
-      // Skip water tiles
-      if (plotTypes[idx] === PLOT.OCEAN || plotTypes[idx] === PLOT.COAST) continue;
+    // 4. Four-pass system (exact Civ4 algorithm from CvMapGenerator::addRivers)
+    for (let pass = 0; pass < 4; pass++) {
+      const riverSourceRange = pass <= 1
+        ? RIVER_SOURCE_MIN_RIVER_RANGE
+        : Math.floor(RIVER_SOURCE_MIN_RIVER_RANGE / 2);
+      const seaWaterRange = pass <= 1
+        ? RIVER_SOURCE_MIN_SEAWATER_RANGE
+        : Math.floor(RIVER_SOURCE_MIN_SEAWATER_RANGE / 2);
 
-      // Skip tiles that already have a river
-      if (this._tileHasRiver(rivers, x, y)) continue;
+      for (let i = 0; i < W * H; i++) {
+        const plot = plotTypes[i];
+        if (plot === PLOT.OCEAN || plot === PLOT.COAST) continue;
 
-      // Find best start direction
-      const direction = this.getRiverStartCardinalDirection(x, y, plotTypes, altitudes);
-      if (direction === null) continue;
+        const x = i % W;
+        const y = Math.floor(i / W);
 
-      // Trace river from this tile
-      this._doRiver(x, y, direction, plotTypes, altitudes, rivers);
+        // Pass-specific filters (exact Civ4 conditions from lines 347-350)
+        if (pass === 0) {
+          // Hills and peaks only
+          if (plot !== PLOT.HILLS && plot !== PLOT.PEAK) continue;
+        } else if (pass === 1) {
+          // Non-coastal land, 1/8 random chance
+          if (this._isCoastalLand(plotTypes, x, y)) continue;
+          if (rng.nextInt(0, 7) !== 0) continue;
+        } else if (pass === 2) {
+          // Hills/peaks + area density cap
+          if (plot !== PLOT.HILLS && plot !== PLOT.PEAK) continue;
+          if (totalRiverEdges >= Math.floor(totalLandTiles / PLOTS_PER_RIVER_EDGE) + 1) continue;
+        } else {
+          // Pass 3: any land + area density cap
+          if (totalRiverEdges >= Math.floor(totalLandTiles / PLOTS_PER_RIVER_EDGE) + 1) continue;
+        }
+
+        // Check: no fresh water (river) within riverSourceRange
+        // (Civ4: !GC.getMapINLINE().findWater(pLoopPlot, iRiverSourceRange, true))
+        if (this._findFreshWater(rivers, x, y, riverSourceRange)) continue;
+
+        // Check: no sea water within seaWaterRange
+        // (Civ4: !GC.getMapINLINE().findWater(pLoopPlot, iSeaWaterRange, false))
+        if (this._findSeaWater(plotTypes, x, y, seaWaterRange)) continue;
+
+        // Find start direction (lowest-value cardinal neighbor)
+        const direction = this.getRiverStartCardinalDirection(x, y, plotTypes, riverValues);
+        if (direction === null) continue;
+
+        // Trace river and count edges placed
+        const edgesBefore = totalRiverEdges;
+        totalRiverEdges += this._doRiver(x, y, direction, direction, plotTypes, riverValues, rivers);
+      }
     }
 
     return rivers;
@@ -163,10 +208,6 @@ export class RiverGenerator {
 
   /**
    * Detect lakes — enclosed single-tile ocean bodies surrounded by land.
-   *
-   * In Civ4, lakes are ocean tiles in a "lake area". Since we don't have
-   * Civ4's area system, a boolean array marks which tiles are lakes.
-   * Consumers check lakes[idx] for fresh water access.
    *
    * @param {number[]} plotTypes - 1D array of PLOT enum values (y * width + x)
    * @returns {boolean[]} 1D boolean array indicating lake tiles
@@ -181,7 +222,6 @@ export class RiverGenerator {
         const idx = y * W + x;
         if (plotTypes[idx] !== PLOT.OCEAN) continue;
 
-        // Check if ALL 8 neighbors are non-water
         let allLand = true;
         for (let dy = -1; dy <= 1 && allLand; dy++) {
           for (let dx = -1; dx <= 1 && allLand; dx++) {
@@ -193,7 +233,7 @@ export class RiverGenerator {
             if (this.wrapX) {
               nx = ((nx % W) + W) % W;
             } else if (nx < 0 || nx >= W) {
-              continue; // off-map edge counts as "land" (not water)
+              continue;
             }
 
             if (this.wrapY) {
@@ -219,58 +259,79 @@ export class RiverGenerator {
   }
 
   // ==========================================================================
-  // ALTITUDE SYSTEM
+  // RIVER VALUE SYSTEM (CvMapGenerator::getRiverValueAtPlot)
   // ==========================================================================
 
   /**
-   * Build the full altitude array for river flow computation.
+   * Pre-compute river values for all tiles.
    *
-   * Altitude formula (per tile):
-   *   base = Peak:4, Hills:3, Land:2, Water:1
-   *   + 1 if Desert or Snow (rivers flow around these)
-   *   + 1 if Jungle or Forest (rivers start in forests, only during normalizeAddRiver)
-   *   final = base * 10 + random(0..9)
+   * Exact port of CvMapGenerator::getRiverValueAtPlot():
+   *   value = (NUM_PLOT_TYPES - plotType) * 20
+   *         + sum over 8 directions: (NUM_PLOT_TYPES - adjPlotType)
+   *         + deterministicRandom(x, y, 10)
    *
-   * The ×10 + random creates meaningful altitude separation while adding
-   * slight randomness so rivers don't all follow the same deterministic path.
+   * Civ4 PlotTypes: PEAK=0, HILLS=1, LAND=2, OCEAN=3, NUM=4
+   * Lower values = closer to water = rivers flow toward them.
    *
-   * @param {import('./utils.js').SeededRandom} rng - Seeded RNG
    * @param {number[]} plotTypes - 1D plot type array
-   * @param {string[]} terrain - 1D terrain array
-   * @param {string[]|null} features - 1D feature array, or null
-   * @returns {number[]} 1D altitude array
+   * @returns {number[]} 1D river value array
    */
-  _buildAltitudeMap(rng, plotTypes, terrain, features) {
+  _buildRiverValues(plotTypes) {
     const W = this.iNumPlotsX;
     const H = this.iNumPlotsY;
-    const altitudes = new Array(W * H);
+    const values = new Array(W * H);
+
+    // Map our plot types to Civ4's (NUM_PLOT_TYPES - civ4Type) values:
+    // Our PEAK(4)→4, HILLS(3)→3, LAND(2)→2, COAST(1)→1, OCEAN(0)→1
+    const selfWeight = [1, 1, 2, 3, 4]; // indexed by our PLOT enum
+    const neighborWeight = [1, 1, 2, 3, 4]; // same mapping
+
+    // 8-direction offsets (N, NE, E, SE, S, SW, W, NW)
+    const dirs8 = [
+      [0, -1], [1, -1], [1, 0], [1, 1],
+      [0, 1], [-1, 1], [-1, 0], [-1, -1]
+    ];
 
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const idx = y * W + x;
         const plot = plotTypes[idx];
-        const terr = terrain[idx];
-        const feat = features ? features[idx] : null;
 
-        // Base from plot type
-        let alt;
-        if (plot === PLOT.PEAK) alt = 4;
-        else if (plot === PLOT.HILLS) alt = 3;
-        else if (plot === PLOT.LAND) alt = 2;
-        else alt = 1; // OCEAN or COAST
+        // Self contribution: (NUM_PLOT_TYPES - plotType) * 20
+        let iSum = selfWeight[plot] * 20;
 
-        // Terrain modifier
-        if (terr === TERRAIN.DESERT || terr === TERRAIN.SNOW) alt += 1;
+        // 8-neighbor contribution
+        for (const [dx, dy] of dirs8) {
+          let nx = x + dx;
+          let ny = y + dy;
 
-        // Feature modifier (only present during normalizeAddRiver, not initial pass)
-        if (feat === FEATURE.JUNGLE || feat === FEATURE.FOREST) alt += 1;
+          if (this.wrapX) {
+            nx = ((nx % W) + W) % W;
+          } else if (nx < 0 || nx >= W) {
+            // Off-map: NUM_PLOT_TYPES * 10 = 40 (from Civ4 line 1155)
+            iSum += 40;
+            continue;
+          }
 
-        // Scale and randomize
-        altitudes[idx] = alt * 10 + rng.nextInt(0, 9);
+          if (this.wrapY) {
+            ny = ((ny % H) + H) % H;
+          } else if (ny < 0 || ny >= H) {
+            iSum += 40;
+            continue;
+          }
+
+          iSum += neighborWeight[plotTypes[ny * W + nx]];
+        }
+
+        // Deterministic random seeded by coordinates (Civ4 line 1159-1161)
+        // riverRand.init(x * 43251267 + y * 8273903); iSum += riverRand.get(10)
+        iSum += Math.abs((x * 43251267 + y * 8273903) | 0) % 10;
+
+        values[idx] = iSum;
       }
     }
 
-    return altitudes;
+    return values;
   }
 
   // ==========================================================================
@@ -278,33 +339,29 @@ export class RiverGenerator {
   // ==========================================================================
 
   /**
-   * Determine if a river should start at this tile, and in which direction.
-   *
-   * Finds the lowest-altitude cardinal neighbor. Prefers water neighbors
-   * (river endpoints) over land neighbors. Returns null if no downhill
-   * neighbor exists (tile is in a basin).
+   * Determine the best direction to start a river from this tile.
+   * Picks the cardinal neighbor with the lowest river value.
+   * Only starts if a neighbor is strictly lower than current value.
    *
    * @param {number} x - Tile X coordinate
    * @param {number} y - Tile Y coordinate
    * @param {number[]} plotTypes - 1D plot type array
-   * @param {number[]} altitudes - 1D altitude array
+   * @param {number[]} riverValues - 1D river value array
    * @returns {number|null} CARDINAL direction or null
    */
-  getRiverStartCardinalDirection(x, y, plotTypes, altitudes) {
+  getRiverStartCardinalDirection(x, y, plotTypes, riverValues) {
     const W = this.iNumPlotsX;
     const H = this.iNumPlotsY;
-    const thisAlt = altitudes[y * W + x];
+    const thisVal = riverValues[y * W + x];
 
     let bestDir = null;
-    let lowestAlt = thisAlt; // only flow downhill
-    let towardWater = false;
+    let lowestVal = thisVal; // only start if neighbor is lower
 
     for (const dir of [CARDINAL.NORTH, CARDINAL.EAST, CARDINAL.SOUTH, CARDINAL.WEST]) {
       const [dx, dy] = CARDINAL_OFFSETS[dir];
       let nx = x + dx;
       let ny = y + dy;
 
-      // Handle wrapping
       if (this.wrapX) {
         nx = ((nx % W) + W) % W;
       } else if (nx < 0 || nx >= W) {
@@ -316,61 +373,50 @@ export class RiverGenerator {
         continue;
       }
 
-      const nIdx = ny * W + nx;
-      const nAlt = altitudes[nIdx];
-      const nPlot = plotTypes[nIdx];
-      const nIsWater = (nPlot === PLOT.OCEAN || nPlot === PLOT.COAST);
-
-      // Prefer water neighbors (river endpoint)
-      if (nIsWater && !towardWater) {
+      const nVal = riverValues[ny * W + nx];
+      if (nVal < lowestVal) {
+        lowestVal = nVal;
         bestDir = dir;
-        lowestAlt = nAlt;
-        towardWater = true;
-      } else if (nIsWater && towardWater && nAlt < lowestAlt) {
-        bestDir = dir;
-        lowestAlt = nAlt;
-      } else if (!towardWater && nAlt < lowestAlt) {
-        bestDir = dir;
-        lowestAlt = nAlt;
       }
     }
 
-    return bestDir; // null if no downhill neighbor
+    return bestDir;
   }
 
   // ==========================================================================
-  // RIVER TRACING
+  // RIVER TRACING (CvMapGenerator::doRiver)
   // ==========================================================================
 
   /**
    * Trace a river from a starting tile, placing edge segments until reaching
    * water or a dead end.
    *
-   * At each step:
-   * 1. Compute the next tile from current position + direction
-   * 2. Determine the best continuation direction from the next tile
-   * 3. Compute the flow direction for the edge (from Civ4's direction tables)
-   * 4. Place the river edge between current and next tile
-   * 5. Stop if we reached water or have no valid continuation
+   * Matches CvMapGenerator::doRiver() logic:
+   * - iBestValue = MAX_INT (always find lowest neighbor)
+   * - Excludes opposite-to-original AND opposite-to-last directions
+   * - Stops at water tiles, existing river edges, or loops
    *
    * @param {number} startX - Starting tile X
    * @param {number} startY - Starting tile Y
    * @param {number} startDir - Initial CARDINAL direction
+   * @param {number} originalDir - Original direction (never reversed)
    * @param {number[]} plotTypes - 1D plot type array
-   * @param {number[]} altitudes - 1D altitude array
+   * @param {number[]} riverValues - 1D river value array
    * @param {Object[]} rivers - 1D river data array (mutated in-place)
+   * @returns {number} Number of river edges placed
    */
-  _doRiver(startX, startY, startDir, plotTypes, altitudes, rivers) {
+  _doRiver(startX, startY, startDir, originalDir, plotTypes, riverValues, rivers) {
     let x = startX;
     let y = startY;
     let lastDir = startDir;
+    let edgesPlaced = 0;
 
-    const maxSteps = this.iNumPlotsX + this.iNumPlotsY; // prevent infinite loops
+    const maxSteps = this.iNumPlotsX + this.iNumPlotsY;
     const visited = new Set();
 
     for (let step = 0; step < maxSteps; step++) {
       const key = `${x},${y},${lastDir}`;
-      if (visited.has(key)) break; // loop detection
+      if (visited.has(key)) break;
       visited.add(key);
 
       // Compute next position
@@ -378,62 +424,70 @@ export class RiverGenerator {
       let nx = x + dx;
       let ny = y + dy;
 
-      // Handle wrapping and bounds
       nx = this._wrapX(nx);
       if (ny < 0 || ny >= this.iNumPlotsY) break;
       if (!this.wrapX && (nx < 0 || nx >= this.iNumPlotsX)) break;
 
       const nIdx = ny * this.iNumPlotsX + nx;
 
-      // Check if destination is water (river endpoint)
-      const reachedWater = (plotTypes[nIdx] === PLOT.OCEAN || plotTypes[nIdx] === PLOT.COAST);
+      // Stop if destination is water (river has reached the coast)
+      if (plotTypes[nIdx] === PLOT.OCEAN || plotTypes[nIdx] === PLOT.COAST) break;
 
-      // Determine next direction from (nx, ny) — null if water or dead end
-      let nextDir = null;
-      if (!reachedWater) {
-        nextDir = this._getBestRiverDirection(nx, ny, lastDir, plotTypes, altitudes, rivers);
-      }
+      // Check if this edge already has a river (avoid crossing)
+      if (this._edgeHasRiver(x, y, lastDir, rivers)) break;
 
-      // Compute flow direction for this edge based on Civ4's direction tables
+      // Determine next direction from (nx, ny)
+      // Civ4: iBestValue = MAX_INT, excludes opposite-to-original AND opposite-to-last
+      const nextDir = this._getBestRiverDirection(nx, ny, lastDir, originalDir, plotTypes, riverValues, rivers);
+
+      // Compute flow direction for this edge
       const flowDir = this._getFlowDirection(lastDir, nextDir);
 
-      // Place the river edge between (x,y) and (nx,ny)
+      // Place the river edge
       this._placeRiverEdge(x, y, nx, ny, lastDir, flowDir, rivers);
+      edgesPlaced++;
 
-      // Stop if we reached water or dead end
-      if (reachedWater || nextDir === null) break;
+      // Stop if no valid continuation
+      if (nextDir === null) break;
 
       x = nx;
       y = ny;
       lastDir = nextDir;
     }
+
+    return edgesPlaced;
   }
 
   /**
    * Find the best direction to continue the river from (x,y).
    *
-   * Avoids reversing direction and crossing existing river edges.
-   * Prefers water neighbors (river endpoint), then lowest altitude.
+   * Exact port of CvMapGenerator::doRiver() direction selection (lines 493-517):
+   * - iBestValue = MAX_INT (always find lowest, never stops mid-land)
+   * - Excludes opposite-to-original direction (never fully reverses)
+   * - Excludes opposite-to-last direction (no immediate U-turn)
    *
    * @param {number} x - Current tile X
    * @param {number} y - Current tile Y
-   * @param {number} lastDir - Direction we entered from (to avoid reversing)
+   * @param {number} lastDir - Direction we came from
+   * @param {number} originalDir - Original river direction (never reversed)
    * @param {number[]} plotTypes - 1D plot type array
-   * @param {number[]} altitudes - 1D altitude array
+   * @param {number[]} riverValues - 1D river value array
    * @param {Object[]} rivers - 1D river data array
    * @returns {number|null} Best CARDINAL direction or null
    */
-  _getBestRiverDirection(x, y, lastDir, plotTypes, altitudes, rivers) {
+  _getBestRiverDirection(x, y, lastDir, originalDir, plotTypes, riverValues, rivers) {
     const W = this.iNumPlotsX;
     const H = this.iNumPlotsY;
-    const oppositeDir = (lastDir + 2) % 4; // don't go back
+    const oppositeOfLast = (lastDir + 2) % 4;
+    const oppositeOfOriginal = (originalDir + 2) % 4;
 
     let bestDir = null;
-    let lowestAlt = Infinity;
-    let foundWater = false;
+    let lowestVal = Infinity; // Civ4: iBestValue = MAX_INT
 
     for (const dir of [CARDINAL.NORTH, CARDINAL.EAST, CARDINAL.SOUTH, CARDINAL.WEST]) {
-      if (dir === oppositeDir) continue; // no reversing
+      // Civ4 lines 499-501: skip opposite of original AND opposite of last
+      if (dir === oppositeOfOriginal) continue;
+      if (dir === oppositeOfLast) continue;
 
       const [dx, dy] = CARDINAL_OFFSETS[dir];
       let nx = x + dx;
@@ -444,23 +498,11 @@ export class RiverGenerator {
       if (!this.wrapX && (nx < 0 || nx >= W)) continue;
 
       const nIdx = ny * W + nx;
-      const nPlot = plotTypes[nIdx];
-      const nAlt = altitudes[nIdx];
-      const isWater = (nPlot === PLOT.OCEAN || nPlot === PLOT.COAST);
+      const nVal = riverValues[nIdx];
 
-      // Check if this edge already has a river (avoid crossing)
-      if (this._edgeHasRiver(x, y, dir, rivers)) continue;
-
-      if (isWater && !foundWater) {
+      if (nVal < lowestVal) {
+        lowestVal = nVal;
         bestDir = dir;
-        lowestAlt = nAlt;
-        foundWater = true;
-      } else if (isWater && foundWater && nAlt < lowestAlt) {
-        bestDir = dir;
-        lowestAlt = nAlt;
-      } else if (!foundWater && nAlt < lowestAlt) {
-        bestDir = dir;
-        lowestAlt = nAlt;
       }
     }
 
@@ -482,30 +524,18 @@ export class RiverGenerator {
    * | SOUTH     | isNOfRiver  | (toX, toY)         | riverNSDirection  |
    * | EAST      | isWOfRiver  | (toX, toY)         | riverWEDirection  |
    * | WEST      | isWOfRiver  | (fromX, fromY)     | riverWEDirection  |
-   *
-   * @param {number} fromX - Source tile X
-   * @param {number} fromY - Source tile Y
-   * @param {number} toX - Destination tile X
-   * @param {number} toY - Destination tile Y
-   * @param {number} direction - CARDINAL direction of movement
-   * @param {string} flowDir - FLOW direction for this edge
-   * @param {Object[]} rivers - 1D river data array (mutated in-place)
    */
   _placeRiverEdge(fromX, fromY, toX, toY, direction, flowDir, rivers) {
     const W = this.iNumPlotsX;
 
     switch (direction) {
       case CARDINAL.NORTH: {
-        // Moving north: horizontal edge between (fromX, fromY) and (fromX, fromY-1)
-        // isNOfRiver on (fromX, fromY) — this tile's north edge
         const idx = fromY * W + fromX;
         rivers[idx].isNOfRiver = true;
         rivers[idx].riverNSDirection = flowDir;
         break;
       }
       case CARDINAL.SOUTH: {
-        // Moving south: horizontal edge between (fromX, fromY) and (fromX, fromY+1)
-        // isNOfRiver on (toX, toY) — south tile's north edge
         if (toY < this.iNumPlotsY) {
           const idx = toY * W + toX;
           rivers[idx].isNOfRiver = true;
@@ -514,16 +544,12 @@ export class RiverGenerator {
         break;
       }
       case CARDINAL.EAST: {
-        // Moving east: vertical edge between (fromX, fromY) and (fromX+1, fromY)
-        // isWOfRiver on (toX, toY) — east tile's west edge
         const idx = toY * W + toX;
         rivers[idx].isWOfRiver = true;
         rivers[idx].riverWEDirection = flowDir;
         break;
       }
       case CARDINAL.WEST: {
-        // Moving west: vertical edge between (fromX, fromY) and (fromX-1, fromY)
-        // isWOfRiver on (fromX, fromY) — this tile's west edge
         const idx = fromY * W + fromX;
         rivers[idx].isWOfRiver = true;
         rivers[idx].riverWEDirection = flowDir;
@@ -534,42 +560,137 @@ export class RiverGenerator {
 
   /**
    * Compute flow direction for a river edge based on Civ4's direction tables.
-   *
-   * The flow direction is perpendicular to the movement and depends on where
-   * the river turns next:
-   *
-   * | lastDir | nextDir→EAST | nextDir→other |
-   * |---------|-------------|---------------|
-   * | NORTH   | FLOW.EAST   | FLOW.WEST     |
-   * | SOUTH   | FLOW.EAST   | FLOW.WEST(W)  |
-   * | EAST    | FLOW.NORTH  | FLOW.SOUTH(S) |
-   * | WEST    | FLOW.SOUTH  | FLOW.NORTH(N) |
-   *
-   * Matches Civ4's CvMapGenerator::doRiver() switch tables exactly.
-   *
-   * @param {number} lastDir - CARDINAL direction of current movement
-   * @param {number|null} nextDir - CARDINAL direction of next movement, or null
-   * @returns {string} FLOW direction for the edge
    */
   _getFlowDirection(lastDir, nextDir) {
     switch (lastDir) {
       case CARDINAL.NORTH:
-        // Horizontal edge: flow EAST only if turning east, otherwise WEST
         return (nextDir === CARDINAL.EAST) ? FLOW.EAST : FLOW.WEST;
-
       case CARDINAL.SOUTH:
-        // Horizontal edge: flow WEST only if turning west, otherwise EAST
         return (nextDir === CARDINAL.WEST) ? FLOW.WEST : FLOW.EAST;
-
       case CARDINAL.EAST:
-        // Vertical edge: flow SOUTH only if turning south, otherwise NORTH
         return (nextDir === CARDINAL.SOUTH) ? FLOW.SOUTH : FLOW.NORTH;
-
       case CARDINAL.WEST:
-        // Vertical edge: flow NORTH only if turning north, otherwise SOUTH
         return (nextDir === CARDINAL.NORTH) ? FLOW.NORTH : FLOW.SOUTH;
     }
     return null;
+  }
+
+  // ==========================================================================
+  // WATER / RIVER DETECTION (CvMap::findWater)
+  // ==========================================================================
+
+  /**
+   * Check if there's fresh water (a river) within range of (x,y).
+   * Port of CvMap::findWater(pPlot, iRange, true).
+   *
+   * A tile has fresh water if any of its 4 edges has a river segment:
+   * - isNOfRiver on this tile (north edge)
+   * - isWOfRiver on this tile (west edge)
+   * - isNOfRiver on south neighbor (south edge)
+   * - isWOfRiver on east neighbor (east edge)
+   *
+   * @param {Object[]} rivers - 1D river data array
+   * @param {number} x - Center X
+   * @param {number} y - Center Y
+   * @param {number} range - Search radius
+   * @returns {boolean} True if fresh water found within range
+   */
+  _findFreshWater(rivers, x, y, range) {
+    const W = this.iNumPlotsX;
+    const H = this.iNumPlotsY;
+
+    for (let dy = -range; dy <= range; dy++) {
+      for (let dx = -range; dx <= range; dx++) {
+        let nx = x + dx;
+        let ny = y + dy;
+
+        if (this.wrapX) {
+          nx = ((nx % W) + W) % W;
+        } else if (nx < 0 || nx >= W) {
+          continue;
+        }
+        if (ny < 0 || ny >= H) continue;
+
+        // Check if this tile is adjacent to a river (isFreshWater)
+        const r = rivers[ny * W + nx];
+        if (r.isNOfRiver || r.isWOfRiver) return true;
+
+        // Also check south neighbor's north edge and east neighbor's west edge
+        if (ny + 1 < H && rivers[(ny + 1) * W + nx].isNOfRiver) return true;
+
+        let ex = nx + 1;
+        if (this.wrapX) ex = ((ex % W) + W) % W;
+        if (ex < W) {
+          if (rivers[ny * W + ex].isWOfRiver) return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Check if there's sea water (ocean/coast) within range of (x,y).
+   * Port of CvMap::findWater(pPlot, iRange, false).
+   *
+   * @param {number[]} plotTypes - 1D plot type array
+   * @param {number} x - Center X
+   * @param {number} y - Center Y
+   * @param {number} range - Search radius
+   * @returns {boolean} True if sea water found within range
+   */
+  _findSeaWater(plotTypes, x, y, range) {
+    const W = this.iNumPlotsX;
+    const H = this.iNumPlotsY;
+
+    for (let dy = -range; dy <= range; dy++) {
+      for (let dx = -range; dx <= range; dx++) {
+        let nx = x + dx;
+        let ny = y + dy;
+
+        if (this.wrapX) {
+          nx = ((nx % W) + W) % W;
+        } else if (nx < 0 || nx >= W) {
+          continue;
+        }
+        if (ny < 0 || ny >= H) continue;
+
+        const plot = plotTypes[ny * W + nx];
+        if (plot === PLOT.OCEAN || plot === PLOT.COAST) return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Check if a land tile is coastal (has at least one water cardinal neighbor).
+   *
+   * @param {number[]} plotTypes - 1D plot type array
+   * @param {number} x - Tile X
+   * @param {number} y - Tile Y
+   * @returns {boolean} True if coastal land
+   */
+  _isCoastalLand(plotTypes, x, y) {
+    const W = this.iNumPlotsX;
+    const H = this.iNumPlotsY;
+
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+      let nx = x + dx;
+      let ny = y + dy;
+
+      if (this.wrapX) {
+        nx = ((nx % W) + W) % W;
+      } else if (nx < 0 || nx >= W) {
+        continue;
+      }
+      if (ny < 0 || ny >= H) continue;
+
+      const plot = plotTypes[ny * W + nx];
+      if (plot === PLOT.OCEAN || plot === PLOT.COAST) return true;
+    }
+
+    return false;
   }
 
   // ==========================================================================
@@ -578,12 +699,6 @@ export class RiverGenerator {
 
   /**
    * Check if a specific edge already has a river segment.
-   *
-   * @param {number} x - Tile X coordinate
-   * @param {number} y - Tile Y coordinate
-   * @param {number} direction - CARDINAL direction of the edge to check
-   * @param {Object[]} rivers - 1D river data array
-   * @returns {boolean} True if the edge has a river
    */
   _edgeHasRiver(x, y, direction, rivers) {
     const W = this.iNumPlotsX;
@@ -607,49 +722,12 @@ export class RiverGenerator {
     return false;
   }
 
-  /**
-   * Check if a tile has any river on any of its 4 edges.
-   *
-   * A tile has a river if any edge has a river segment:
-   * - North edge: isNOfRiver on this tile
-   * - West edge: isWOfRiver on this tile
-   * - South edge: isNOfRiver on the tile below (y+1)
-   * - East edge: isWOfRiver on the tile to the right (x+1)
-   *
-   * @param {Object[]} rivers - 1D river data array
-   * @param {number} x - Tile X coordinate
-   * @param {number} y - Tile Y coordinate
-   * @returns {boolean} True if tile has any river edge
-   */
-  _tileHasRiver(rivers, x, y) {
-    const W = this.iNumPlotsX;
-    const H = this.iNumPlotsY;
-    const idx = y * W + x;
-
-    if (rivers[idx].isNOfRiver || rivers[idx].isWOfRiver) return true;
-
-    // South neighbor's north edge
-    if (y + 1 < H && rivers[(y + 1) * W + x].isNOfRiver) return true;
-
-    // East neighbor's west edge
-    const ex = this._wrapX(x + 1);
-    if (this.wrapX || ex < W) {
-      if (rivers[y * W + ex].isWOfRiver) return true;
-    }
-
-    return false;
-  }
-
   // ==========================================================================
   // UTILITY
   // ==========================================================================
 
   /**
    * Wrap X coordinate for horizontal map wrapping.
-   * Returns raw value if wrapping is disabled (caller must check bounds).
-   *
-   * @param {number} x - X coordinate to wrap
-   * @returns {number} Wrapped X coordinate
    */
   _wrapX(x) {
     if (!this.wrapX) return x;
@@ -658,8 +736,6 @@ export class RiverGenerator {
 
   /**
    * Convert a 1D river array to 2D for backward compatibility.
-   * @param {Object[]} rivers - 1D river array (y * width + x)
-   * @returns {Object[][]} 2D river array [y][x]
    */
   toRivers2D(rivers) {
     const W = this.iNumPlotsX;
@@ -674,7 +750,6 @@ export class RiverGenerator {
 // EXPORTS
 // ============================================================================
 
-// Re-export for convenience (consumers can import from this module)
 export { PLOT } from './FractalWorld.js';
 export { TERRAIN } from './TerrainGenerator.js';
 export { FEATURE } from './FeatureGenerator.js';

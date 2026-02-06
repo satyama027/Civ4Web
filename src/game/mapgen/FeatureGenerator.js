@@ -94,6 +94,7 @@ export class FeatureGenerator {
     this.jungleLatitude = settings.jungleLatitude || 0.15;
 
     // Fractal configuration
+    // CyFractal now uses full grid resolution regardless of grain.
     const fracXExp = settings.fracXExp || 7;
     const fracYExp = settings.fracYExp || 6;
 

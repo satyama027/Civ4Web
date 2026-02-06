@@ -92,6 +92,8 @@ export class TerrainGenerator {
 
     // Fractal configuration
     this.grain_amount = settings.grain_amount || 4;
+    // CyFractal now uses full grid resolution (2^fracXExp+1) regardless of
+    // grain, matching Civ4 behavior. Grain controls seed spacing, not grid size.
     const fracXExp = settings.fracXExp || 7;
     const fracYExp = settings.fracYExp || 6;
 
