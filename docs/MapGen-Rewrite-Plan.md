@@ -10,9 +10,9 @@
 | 4. MultilayeredFractal Class | ✅ Complete | 2026-02-05 |
 | 5. TerrainGenerator | ✅ Complete | 2026-02-05 |
 | 6. FeatureGenerator | ✅ Complete | 2026-02-05 |
-| 7. River Generation + Lakes | ⬚ Not Started | |
-| 8. Bonus/Resource Placement | ⬚ Not Started | |
-| 9. Starting Plots + Normalization | ⬚ Not Started | |
+| 7. River Generation + Lakes | ✅ Complete | 2026-02-05 |
+| 8. Bonus/Resource Placement | ✅ Complete | 2026-02-05 |
+| 9. Starting Plots + Normalization | ✅ Complete | 2026-02-06 |
 | 10. Core Map Scripts | ⬚ Not Started | |
 | 11. Advanced Map Scripts | ⬚ Not Started | |
 | 12. Integration + Backward Compatibility | ⬚ Not Started | |
