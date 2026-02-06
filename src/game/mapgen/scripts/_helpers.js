@@ -7,6 +7,7 @@
 
 import { PLOT } from '../FractalWorld.js';
 import { TERRAIN } from '../TerrainGenerator.js';
+import { StartingPlots } from '../StartingPlots.js';
 import { getMapSizeConfig } from '../../../data/gameOptions.js';
 
 // ============================================================================
@@ -323,4 +324,70 @@ export function buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1
       return 'FLAT';
     }
   };
+}
+
+// ============================================================================
+// Shared Starting Plot Assignment: Biggest Land Area
+// ============================================================================
+
+/**
+ * Assign all players onto the biggest connected landmass.
+ * Used by Pangaea, Terra, Lakes, and other single-continent scripts.
+ *
+ * @param {number} numPlayers
+ * @param {number[]} plotTypes1D
+ * @param {string[]} terrain1D
+ * @param {(string|null)[]} features1D
+ * @param {(string|null)[]} bonuses1D
+ * @param {Object[]} rivers1D
+ * @param {boolean[]} lakes1D
+ * @param {number} W - map width
+ * @param {number} H - map height
+ * @param {number} distModifier - minStartingDistanceModifier
+ * @param {boolean} wrapX - whether map wraps horizontally
+ * @param {Object} _rng - seeded RNG (unused but kept for API consistency)
+ * @returns {Array<{x:number, y:number}>}
+ */
+export function assignStartsBiggestArea(numPlayers, plotTypes1D, terrain1D, features1D,
+                                         bonuses1D, rivers1D, lakes1D,
+                                         W, H, distModifier, wrapX, _rng) {
+  const { areaId: biggestAreaId, areas } = findBiggestLandArea(plotTypes1D, W, H, wrapX);
+
+  const sp = new StartingPlots(W, H, {
+    minStartingDistanceModifier: distModifier,
+    wrapX, wrapY: false
+  });
+
+  const scores = sp._scoreAllTiles(plotTypes1D, terrain1D, features1D,
+                                     bonuses1D, rivers1D, lakes1D);
+
+  const candidates = [];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = y * W + x;
+      if (scores[idx] <= -900) continue;
+      if (areas[idx] !== biggestAreaId) continue;
+      candidates.push({ x, y, score: scores[idx] });
+    }
+  }
+  candidates.sort((a, b) => b.score - a.score);
+
+  const baseRange = sp._startingPlotRange(numPlayers);
+  let minDist = baseRange;
+  const starts = [];
+
+  for (let pass = 0; pass < 50 && starts.length < numPlayers; pass++) {
+    for (const c of candidates) {
+      if (starts.length >= numPlayers) break;
+      if (starts.some(s => s.x === c.x && s.y === c.y)) continue;
+      let ok = true;
+      for (const s of starts) {
+        if (sp._wrappedDistance(c.x, c.y, s.x, s.y) < minDist) { ok = false; break; }
+      }
+      if (ok) starts.push({ x: c.x, y: c.y });
+    }
+    minDist = Math.max(1, minDist - 1);
+  }
+
+  return starts;
 }

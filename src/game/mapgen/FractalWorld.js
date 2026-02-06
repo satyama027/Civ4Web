@@ -83,8 +83,8 @@ export class FractalWorld {
 
     // Sea level configuration
     this.seaLevelChange = settings.seaLevelChange || 0;
-    this.seaLevelMax = 100;
-    this.seaLevelMin = 0;
+    this.seaLevelMin = settings.seaLevelMin != null ? settings.seaLevelMin : 0;
+    this.seaLevelMax = settings.seaLevelMax != null ? settings.seaLevelMax : 100;
 
     // Hills configuration (from Civ4 climate XML)
     // Two bands: centered at 25% and 75% percentile
