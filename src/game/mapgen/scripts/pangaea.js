@@ -23,6 +23,7 @@ import { FeatureGenerator } from '../FeatureGenerator.js';
 import { RiverGenerator } from '../RiverGenerator.js';
 import { BonusGenerator } from '../BonusGenerator.js';
 import { StartingPlots } from '../StartingPlots.js';
+import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
   resolveGridSize,
   resolveSeaLevelChange,
@@ -625,14 +626,34 @@ const GRID_TABLE = {
 export default {
   id: 'pangaea',
   name: 'Pangaea',
+  description: 'One large landmass with optional variations.',
+  isAdvancedMap: false,
   getWrapX()  { return true; },
   getWrapY()  { return false; },
   getTopLatitude()    { return 90; },
   getBottomLatitude() { return -90; },
   isClimateMap()  { return true; },
   isSeaLevelMap() { return true; },
+  isBonusIgnoreLatitude() { return false; },
+  startHumansOnSameTile() { return false; },
   minStartingDistanceModifier() { return 0; },
 
+  customOptions: [
+    {
+      id: 'shoreline',
+      name: 'Shoreline',
+      values: [
+        { id: 'random', label: 'Random' },
+        { id: 'natural', label: 'Natural' },
+        { id: 'pressed', label: 'Pressed' },
+        { id: 'solid', label: 'Solid' }
+      ],
+      default: 0,
+      allowRandom: false
+    }
+  ],
+
+  // Legacy single-option support
   customOption: {
     name: 'Shoreline',
     values: ['Random', 'Natural', 'Pressed', 'Solid'],
@@ -717,7 +738,11 @@ export default {
     sp.normalize(starts, plotTypes1D, terrain1D, features1D,
                  bonuses1D, rivers1D, lakes1D, rng);
 
+    // Goody huts
+    const gg = new GoodyGenerator(W, H, { wrapX: true, wrapY: false });
+    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
+
     return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts);
+                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
   }
 };

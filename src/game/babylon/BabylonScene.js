@@ -62,9 +62,10 @@ export function createScene(canvas, mapData) {
     width: mapData.width * 4,
     height: mapData.height * 4
   }, scene);
-  oceanBg.position = new Vector3(centerX, -0.4, centerZ);
+  oceanBg.position = new Vector3(centerX, -0.5, centerZ);
   const oceanMat = new StandardMaterial('oceanBgMat', scene);
   oceanMat.diffuseColor = new Color3(0.10, 0.29, 0.48);
+  oceanMat.specularColor = new Color3(0, 0, 0);
   oceanBg.material = oceanMat;
   oceanBg.isPickable = false;
 

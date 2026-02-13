@@ -141,13 +141,17 @@ export class HintedWorld extends FractalWorld {
   constructor(mapWidth, mapHeight, w = 16, h = 8, settings = {}) {
     super(mapWidth, mapHeight, settings);
 
-    // Block grid dimensions
-    this.w = w;
-    this.h = h;
-
-    // Plots per block (integer division)
+    // Plots per block — computed BEFORE the +1 adjustment (matches original Civ4)
     this.plotsPerBlockX = Math.floor(this.iNumPlotsX / w);
     this.plotsPerBlockY = Math.floor(this.iNumPlotsY / h);
+
+    // Matching original Civ4: non-wrapping axes get +1 block for the edge
+    if (!this.wrapX) w += 1;
+    if (!this.wrapY) h += 1;
+
+    // Block grid dimensions (after +1 adjustment)
+    this.w = w;
+    this.h = h;
 
     // Block data: null = unassigned, 0-191 = water, 192-255 = land
     this.data = new Array(w * h).fill(null);
@@ -633,24 +637,41 @@ export class HintedWorld extends FractalWorld {
   generatePlotTypes(rng, params = {}) {
     const {
       water_percent = -1,
-      continent_grain = 2,
       grain_amount = 3,
       shift_plot_types = false
     } = params;
 
-    // 1. Fill null entries with low water values
+    // 1. Shift hints to center land on the block grid
+    this.shiftHintsToMap();
+
+    // 2. Fill null entries with low water values
     for (let i = 0; i < this.data.length; i++) {
       if (this.data[i] === null) {
         this.data[i] = rng.nextInt(0, 47);
       }
     }
 
-    // 2. Initialize continent fractal with hints
+    // 3. Compute grain from data size (matching original Civ4 __doInitFractal)
+    const size = this.data.length;
+    const minExp = Math.min(this.fracXExp, this.fracYExp);
+    let iGrain = 1; // fallback
+    for (let i = 0; i < minExp; i++) {
+      let gw = 1 << (this.fracXExp - minExp + i);
+      let gh = 1 << (this.fracYExp - minExp + i);
+      if (!this.wrapX) gw += 1;
+      if (!this.wrapY) gh += 1;
+      if (size === gw * gh) {
+        iGrain = i;
+        break;
+      }
+    }
+
+    // 4. Initialize continent fractal with hints
     const flags = this.getMapFractalFlags();
     this.continentsFrac.fracInitHints(
       this.data, this.w, this.h,
       this.iNumPlotsX, this.iNumPlotsY,
-      continent_grain, rng, flags
+      iGrain, rng, flags
     );
 
     // 3. Auto-calculate water percent if -1

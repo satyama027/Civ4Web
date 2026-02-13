@@ -504,6 +504,13 @@ export class BonusGenerator {
     this.wrapY = settings.wrapY || false;
     this.numPlayers = settings.numPlayers || 7;
 
+    // Latitude range (for future latitude-based restrictions)
+    this.topLatitude = settings.topLatitude ?? 90;
+    this.bottomLatitude = settings.bottomLatitude ?? -90;
+
+    // When true, bonus placement ignores latitude restrictions
+    this.ignoreLatitude = settings.ignoreLatitude ?? false;
+
     // Lazy-init cache for class lookup
     this._classLookup = null;
   }

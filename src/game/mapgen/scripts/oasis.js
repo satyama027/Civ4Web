@@ -21,6 +21,7 @@ import { FeatureGenerator } from '../FeatureGenerator.js';
 import { RiverGenerator } from '../RiverGenerator.js';
 import { BonusGenerator } from '../BonusGenerator.js';
 import { StartingPlots } from '../StartingPlots.js';
+import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
   getDefaultDimensions,
   buildMapResult
@@ -129,7 +130,8 @@ class OasisTerrainGenerator extends TerrainGenerator {
     super(W, H, {
       iDesertPercent: 32,
       iPlainsPercent: 18,
-      wrapX: false, wrapY: false
+      wrapX: false, wrapY: false,
+      topLatitude: 40, bottomLatitude: 0
     });
     this.iOasisGrassPercent = 9;
     this.iOasisPlainsPercent = 16;
@@ -264,14 +266,18 @@ function addNileRivers(rng, plotTypes1D, terrain1D, W, H, mapSize) {
 export default {
   id: 'oasis',
   name: 'Oasis',
+  description: 'Desert map with a central river and oasis region.',
+  isAdvancedMap: true,
   getWrapX()  { return false; },
   getWrapY()  { return false; },
   getTopLatitude()    { return 40; },
   getBottomLatitude() { return 0; },
   isClimateMap()  { return false; },
   isSeaLevelMap() { return false; },
+  isBonusIgnoreLatitude() { return false; },
+  startHumansOnSameTile() { return false; },
   minStartingDistanceModifier() { return -35; },
-  customOption: null,
+  customOptions: [],
 
   getGridSize() { return null; },
 
@@ -300,13 +306,15 @@ export default {
     // Features
     const fg = new FeatureGenerator(W, H, {
       jungleLatitude: 0.15,
-      wrapX: false, wrapY: false
+      wrapX: false, wrapY: false,
+      topLatitude: 40, bottomLatitude: 0
     });
     const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
 
     // Bonuses
     const bg = new BonusGenerator(W, H, {
-      numPlayers, wrapX: false, wrapY: false
+      numPlayers, wrapX: false, wrapY: false,
+      topLatitude: 40, bottomLatitude: 0
     });
     const bonuses1D = bg.addBonuses(rng, plotTypes1D, terrain1D, features1D);
 
@@ -320,7 +328,11 @@ export default {
       numPlayers, rng, plotTypes1D, terrain1D, features1D, bonuses1D, rivers1D, lakes1D
     );
 
+    // Goody huts
+    const gg = new GoodyGenerator(W, H, { wrapX: false, wrapY: false });
+    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
+
     return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts);
+                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
   }
 };

@@ -97,6 +97,10 @@ export class TerrainGenerator {
     const fracXExp = settings.fracXExp || 7;
     const fracYExp = settings.fracYExp || 6;
 
+    // Latitude range (default: full globe ±90)
+    this.topLatitude = settings.topLatitude ?? 90;
+    this.bottomLatitude = settings.bottomLatitude ?? -90;
+
     // Map wrapping
     this.wrapX = settings.wrapX !== false;
     this.wrapY = settings.wrapY || false;
@@ -192,10 +196,13 @@ export class TerrainGenerator {
    * @returns {number} Latitude in [0.0, 1.0]
    */
   getLatitudeAtPlot(x, y) {
-    // Distance from equator, normalized 0.0 to 1.0
-    // y=0 is top (north pole), y=max is bottom (south pole)
-    // Equator is at iNumPlotsY / 2
-    let lat = Math.abs((this.iNumPlotsY / 2) - y) / (this.iNumPlotsY / 2);
+    // Compute real-world latitude from topLatitude/bottomLatitude range.
+    // y=0 → topLatitude, y=max → bottomLatitude.
+    const ratio = y / Math.max(1, this.iNumPlotsY - 1);
+    const realLat = this.topLatitude + ratio * (this.bottomLatitude - this.topLatitude);
+
+    // Convert to 0.0 (equator) → 1.0 (pole) scale
+    let lat = Math.abs(realLat) / 90.0;
 
     // Add variation from fractal: ±0.1 range
     // Height=0 → +0.1, Height=128 → 0, Height=255 → -0.1

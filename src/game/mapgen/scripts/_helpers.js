@@ -283,10 +283,11 @@ export function scoreCitySite(cx, cy, plotTypes1D, terrain1D, features1D,
  * @param {Object[]} rivers1D
  * @param {boolean[]} lakes1D
  * @param {Array<{x:number, y:number}>} starts
+ * @param {boolean[]} [goodies1D=null] - 1D array of goody hut flags
  * @returns {Object} map result
  */
 export function buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                                bonuses1D, rivers1D, lakes1D, starts) {
+                                bonuses1D, rivers1D, lakes1D, starts, goodies1D = null) {
   const to2D = (arr) => Array.from({ length: H }, (_, y) =>
     Array.from({ length: W }, (_, x) => arr[y * W + x])
   );
@@ -302,6 +303,7 @@ export function buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1
     resources: to2D(bonuses1D),
     rivers: to2D(rivers1D),
     lakes: to2D(lakes1D),
+    goodies: goodies1D ? to2D(goodies1D) : to2D(new Array(W * H).fill(false)),
     startingLocations: starts,
     getTile(x, y) {
       const wx = ((x % W) + W) % W;

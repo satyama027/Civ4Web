@@ -150,16 +150,13 @@ export class FractalWorld {
 
     // Initialize with or without rifts
     if (rift_grain >= 0) {
-      // Create rift fractal — center rift is applied HERE so the rift
-      // has low values at the map center, which then pull down continent
-      // heights during modulation, splitting land into multiple continents.
+      // Matching original Civ4: rift fractal is plain noise (flags=0),
+      // CENTER_RIFT flag goes on the continent fractal via fracInitRifts.
       const riftsFrac = new CyFractal(this.fracXExp, this.fracYExp);
-      let riftInitFlags = flags;
-      if (has_center_rift) riftInitFlags |= FRAC_CENTER_RIFT;
-      riftsFrac.fracInit(this.iNumPlotsX, this.iNumPlotsY, rift_grain, rng, riftInitFlags);
+      riftsFrac.fracInit(this.iNumPlotsX, this.iNumPlotsY, rift_grain, rng, 0);
 
-      // Initialize continents with rift modulation
-      // (no CENTER_RIFT in these flags — it was applied to the rift fractal above)
+      // Add CENTER_RIFT to continent flags (not rift flags)
+      if (has_center_rift) flags |= FRAC_CENTER_RIFT;
       this.continentsFrac.fracInitRifts(
         riftsFrac, has_center_rift,
         this.iNumPlotsX, this.iNumPlotsY,
@@ -485,12 +482,10 @@ export class FractalWorld {
     const xshift = this.wrapX ? this.findBestSplitX() : 0;
     const yshift = this.wrapY ? this.findBestSplitY() : 0;
 
-    // Civ4 shifts the ocean to the map edge (for cylindrical scrolling).
-    // For a flat display, shift the ocean to the CENTER so continents
-    // appear as distinct landmasses on either side.
-    const centerOffsetX = this.wrapX ? Math.floor(this.iNumPlotsX / 2) : 0;
-    const centerOffsetY = this.wrapY ? Math.floor(this.iNumPlotsY / 2) : 0;
-    this.shiftPlotTypesBy(xshift - centerOffsetX, yshift - centerOffsetY);
+    // Shift the widest ocean strip to x=0 (the map edge).
+    // Since the map wraps on X, x=0 and x=width-1 are adjacent,
+    // so ocean ends up at both edges and continents are centered.
+    this.shiftPlotTypesBy(xshift, yshift);
   }
 
   // ==========================================================================

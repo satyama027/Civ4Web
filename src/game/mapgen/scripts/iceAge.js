@@ -13,6 +13,7 @@ import { FeatureGenerator, FEATURE } from '../FeatureGenerator.js';
 import { RiverGenerator } from '../RiverGenerator.js';
 import { BonusGenerator } from '../BonusGenerator.js';
 import { StartingPlots } from '../StartingPlots.js';
+import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
   resolveSeaLevelChange,
   resolveClimateSettings,
@@ -153,14 +154,35 @@ function generateIceAgePlots(W, H, seaLevelChange, climateConfig, grainConfig, r
 export default {
   id: 'ice_age',
   name: 'Ice Age',
+  description: 'Wide map with aggressive ice coverage and varied terrain.',
+  isAdvancedMap: true,
   getWrapX()  { return true; },
   getWrapY()  { return false; },
   getTopLatitude()    { return 90; },
   getBottomLatitude() { return -90; },
   isClimateMap()  { return true; },
   isSeaLevelMap() { return true; },
+  isBonusIgnoreLatitude() { return false; },
+  startHumansOnSameTile() { return false; },
   minStartingDistanceModifier() { return 0; },
 
+  customOptions: [
+    {
+      id: 'landmass_type',
+      name: 'Landmass Type',
+      values: [
+        { id: 'random', label: 'Random' },
+        { id: 'wide', label: 'Wide Continents' },
+        { id: 'narrow', label: 'Narrow Continents' },
+        { id: 'islands', label: 'Islands' },
+        { id: 'small_islands', label: 'Small Islands' }
+      ],
+      default: 0,
+      allowRandom: false
+    }
+  ],
+
+  // Legacy single-option support
   customOption: {
     name: 'Landmass Type',
     values: ['Random', 'Wide Continents', 'Narrow Continents', 'Islands', 'Small Islands'],
@@ -229,7 +251,11 @@ export default {
     sp.normalize(starts, plotTypes1D, terrain1D, features1D,
                  bonuses1D, rivers1D, lakes1D, rng);
 
+    // Goody huts
+    const gg = new GoodyGenerator(W, H, { wrapX: true, wrapY: false });
+    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
+
     return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts);
+                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
   }
 };

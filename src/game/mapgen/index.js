@@ -91,7 +91,7 @@ function tileHasRiver(rivers, x, y, W, H) {
 function buildFinalMapData(scriptResult, heightmap, settings, seed) {
   const {
     width: W, height: H,
-    plots, terrain, features, resources, rivers, lakes,
+    plots, terrain, features, resources, rivers, lakes, goodies,
     startingLocations
   } = scriptResult;
 
@@ -107,6 +107,7 @@ function buildFinalMapData(scriptResult, heightmap, settings, seed) {
     features,
     resources,
     rivers,
+    goodies,
     startingLocations,
 
     getTile(x, y) {
@@ -131,6 +132,7 @@ function buildFinalMapData(scriptResult, heightmap, settings, seed) {
         hasRiver: tileHasRiver(rivers, wx, y, W, H),
 
         isLake: lakes ? lakes[y][wx] : false,
+        hasGoodyHut: goodies ? goodies[y][wx] : false,
 
         // River edges — map new field names to legacy names
         isNOfRiver: river.isNOfRiver,
@@ -152,6 +154,60 @@ function buildFinalMapData(scriptResult, heightmap, settings, seed) {
   };
 }
 
+// --- Script metadata (for UI rendering without generating a map) ---
+
+/**
+ * Get metadata for a map script.
+ * Used by NewGame.jsx to conditionally render climate/sea level dropdowns,
+ * display descriptions, and show custom options.
+ *
+ * @param {string} mapType - Map type ID
+ * @returns {Object} Script metadata
+ */
+export function getMapScriptInfo(mapType) {
+  const script = getMapScript(mapType);
+  return {
+    id: script.id,
+    name: script.name,
+    description: script.description ?? '',
+    isAdvancedMap: script.isAdvancedMap ?? false,
+    isClimateMap: script.isClimateMap?.() ?? true,
+    isSeaLevelMap: script.isSeaLevelMap?.() ?? true,
+    customOptions: script.customOptions ?? [],
+    isBonusIgnoreLatitude: script.isBonusIgnoreLatitude?.() ?? false,
+    startHumansOnSameTile: script.startHumansOnSameTile?.() ?? false
+  };
+}
+
+/**
+ * Get metadata for all available map scripts.
+ * @returns {Object[]} Array of script metadata objects
+ */
+export function getAllMapScriptInfo() {
+  return Object.keys(SCRIPT_MAP).map(getMapScriptInfo);
+}
+
+// --- Custom option resolution ---
+
+function resolveCustomOptions(script, rawOptions, rng) {
+  const resolved = {};
+  const customOptions = script.customOptions ?? [];
+
+  for (const opt of customOptions) {
+    const selected = rawOptions?.[opt.id];
+    if (selected === 'random' && opt.allowRandom) {
+      const idx = rng.nextInt(0, opt.values.length - 1);
+      resolved[opt.id] = opt.values[idx].id;
+    } else if (selected != null) {
+      resolved[opt.id] = selected;
+    } else {
+      resolved[opt.id] = opt.values[opt.default].id;
+    }
+  }
+
+  return resolved;
+}
+
 // --- Main entry point ---
 export function generateMap(settings) {
   const {
@@ -161,7 +217,8 @@ export function generateMap(settings) {
     seaLevel = 'medium',
     numPlayers = 7,
     seed = Date.now(),
-    customOption = null
+    customOption = null,
+    customOptions: rawCustomOptions = null
   } = settings;
 
   // Clamp numPlayers
@@ -177,7 +234,20 @@ export function generateMap(settings) {
 
   console.log(`Generating ${mapType} map (${script.name}) with seed ${seed}`);
 
-  // 2. Run the script's full pipeline
+  // 2. Lifecycle hook: beforeInit
+  if (script.beforeInit) {
+    script.beforeInit(settings, rng);
+  }
+
+  // 3. Resolve custom options (new array format or legacy single value)
+  const resolvedCustomOptions = resolveCustomOptions(script, rawCustomOptions, rng);
+
+  // 4. Lifecycle hook: beforeGeneration
+  if (script.beforeGeneration) {
+    script.beforeGeneration(settings, rng);
+  }
+
+  // 5. Run the script's full pipeline
   const scriptResult = script.generate({
     mapType,
     mapSize,
@@ -185,10 +255,16 @@ export function generateMap(settings) {
     seaLevel,
     numPlayers: clampedPlayers,
     seed,
-    customOption
+    customOption,
+    customOptions: resolvedCustomOptions
   }, rng);
 
-  // 3. Generate render heightmap for Babylon.js 3D terrain
+  // 6. Lifecycle hook: afterGeneration
+  if (script.afterGeneration) {
+    script.afterGeneration(scriptResult, settings, rng);
+  }
+
+  // 7. Generate render heightmap for Babylon.js 3D terrain
   const heightmap = generateHeightmap(
     scriptResult.width,
     scriptResult.height,
@@ -197,7 +273,7 @@ export function generateMap(settings) {
 
   console.log('Map generation complete!');
 
-  // 4. Build the final backward-compatible output object
+  // 8. Build the final backward-compatible output object
   return buildFinalMapData(
     scriptResult,
     heightmap,
@@ -315,6 +391,8 @@ export default {
   generateTerra,
   mapToAscii,
   getMapStats,
+  getMapScriptInfo,
+  getAllMapScriptInfo,
   TERRAIN,
   FEATURE,
   ELEVATION

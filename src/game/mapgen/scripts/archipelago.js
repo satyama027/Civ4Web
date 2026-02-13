@@ -15,6 +15,7 @@ import { FeatureGenerator } from '../FeatureGenerator.js';
 import { RiverGenerator } from '../RiverGenerator.js';
 import { BonusGenerator } from '../BonusGenerator.js';
 import { StartingPlots } from '../StartingPlots.js';
+import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
   getDefaultDimensions,
   resolveSeaLevelChange,
@@ -213,18 +214,37 @@ function assignStartsArchipelago(numPlayers, regions, plotTypes1D, terrain1D,
 export default {
   id: 'archipelago',
   name: 'Archipelago',
+  description: 'Many small and medium islands spread across the ocean.',
+  isAdvancedMap: false,
   getWrapX()  { return true; },
   getWrapY()  { return false; },
   getTopLatitude()    { return 90; },
   getBottomLatitude() { return -90; },
   isClimateMap()  { return true; },
   isSeaLevelMap() { return true; },
+  isBonusIgnoreLatitude() { return false; },
+  startHumansOnSameTile() { return false; },
   minStartingDistanceModifier() { return 0; },
 
+  customOptions: [
+    {
+      id: 'landmass_type',
+      name: 'Landmass Type',
+      values: [
+        { id: 'snaky', label: 'Snaky Continents' },
+        { id: 'archipelago', label: 'Archipelago' },
+        { id: 'tiny_islands', label: 'Tiny Islands' }
+      ],
+      default: 1,
+      allowRandom: true
+    }
+  ],
+
+  // Legacy single-option support
   customOption: {
     name: 'Landmass Type',
     values: ['Snaky Continents', 'Archipelago', 'Tiny Islands'],
-    default: 1 // Archipelago
+    default: 1
   },
 
   getGridSize() { return null; },
@@ -315,8 +335,12 @@ export default {
     });
     sp.normalize(starts, plotTypes1D, terrain1D, features1D, bonuses1D, rivers1D, lakes1D, rng);
 
-    // 12. Convert to 2D and return
+    // 12. Add goody huts
+    const gg = new GoodyGenerator(W, H, { wrapX: true, wrapY: false });
+    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
+
+    // 13. Convert to 2D and return
     return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts);
+                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
   }
 };

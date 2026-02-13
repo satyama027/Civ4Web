@@ -30,7 +30,9 @@ export {
 // Utility functions
 export {
   mapToAscii,
-  getMapStats
+  getMapStats,
+  getMapScriptInfo,
+  getAllMapScriptInfo
 } from './mapgen/index.js';
 
 // Default export for legacy `import mapGen from './mapGenerator'` usage
@@ -44,7 +46,9 @@ import {
   FEATURE,
   ELEVATION,
   mapToAscii,
-  getMapStats
+  getMapStats,
+  getMapScriptInfo,
+  getAllMapScriptInfo
 } from './mapgen/index.js';
 
 export default {
@@ -55,6 +59,8 @@ export default {
   generateTerra,
   mapToAscii,
   getMapStats,
+  getMapScriptInfo,
+  getAllMapScriptInfo,
   TERRAIN,
   FEATURE,
   ELEVATION

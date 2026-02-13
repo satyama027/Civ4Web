@@ -17,6 +17,7 @@ import { FeatureGenerator } from '../FeatureGenerator.js';
 import { RiverGenerator } from '../RiverGenerator.js';
 import { BonusGenerator } from '../BonusGenerator.js';
 import { StartingPlots } from '../StartingPlots.js';
+import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
   resolveSeaLevelChange,
   resolveClimateSettings,
@@ -322,14 +323,18 @@ function assignStartsInlandSea(numPlayers, plotTypes1D, terrain1D, features1D,
 export default {
   id: 'inland_sea',
   name: 'Inland Sea',
+  description: 'Continental ring surrounding a central body of water.',
+  isAdvancedMap: false,
   getWrapX()  { return false; },
   getWrapY()  { return false; },
   getTopLatitude()    { return 60; },
   getBottomLatitude() { return -60; },
   isClimateMap()  { return true; },
   isSeaLevelMap() { return true; },
+  isBonusIgnoreLatitude() { return false; },
+  startHumansOnSameTile() { return false; },
   minStartingDistanceModifier() { return -95; },
-  customOption: null,
+  customOptions: [],
 
   getGridSize(worldSize) {
     const table = {
@@ -359,7 +364,10 @@ export default {
     TerrainGenerator.addCoastTiles(plotTypes1D, W, H, false, false);
 
     // Custom terrain with latitude compression (no snow/ice)
-    const tg = new ISTerrainGenerator(W, H, { wrapX: false, wrapY: false });
+    const tg = new ISTerrainGenerator(W, H, {
+      wrapX: false, wrapY: false,
+      topLatitude: 60, bottomLatitude: -60
+    });
     const terrain1D = tg.generateTerrain(rng, plotTypes1D);
 
     // Custom rivers flowing toward center
@@ -372,13 +380,15 @@ export default {
     // Custom features with latitude compression
     const fg = new ISFeatureGenerator(W, H, {
       jungleLatitude: climateConfig.jungleLatitude,
-      wrapX: false, wrapY: false
+      wrapX: false, wrapY: false,
+      topLatitude: 60, bottomLatitude: -60
     });
     const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
 
     // Bonuses
     const bg = new BonusGenerator(W, H, {
-      numPlayers, wrapX: false, wrapY: false
+      numPlayers, wrapX: false, wrapY: false,
+      topLatitude: 60, bottomLatitude: -60
     });
     const bonuses1D = bg.addBonuses(rng, plotTypes1D, terrain1D, features1D);
 
@@ -396,7 +406,11 @@ export default {
     sp.normalize(starts, plotTypes1D, terrain1D, features1D,
                  bonuses1D, rivers1D, lakes1D, rng);
 
+    // Goody huts
+    const gg = new GoodyGenerator(W, H, { wrapX: false, wrapY: false });
+    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
+
     return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts);
+                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
   }
 };

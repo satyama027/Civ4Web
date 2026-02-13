@@ -665,23 +665,137 @@ export class StartingPlots {
   }
 
   /**
-   * Pass 9: Final adjustments (subclass hook).
+   * Pass 9: Ensure strategic resources exist near each starting location.
    *
-   * Base implementation is a no-op. Balanced.py overrides this to place
-   * strategic resources within 5 tiles of each start.
+   * Port of Civ4 Warlords BonusBalancer.normalizeAddExtras().
+   * Uses 4 relaxation passes with progressively looser placement constraints:
+   *   Pass 0: Strict (respect uniqueRange, oneArea, adjacency)
+   *   Pass 1: Ignore uniqueRange
+   *   Pass 2: Ignore uniqueRange + oneArea
+   *   Pass 3: Ignore all constraints
    *
-   * @param {Object[]} _starts - Starting locations
-   * @param {number[]} _plotTypes - 1D array of PLOT values
-   * @param {string[]} _terrain - 1D array of TERRAIN values
-   * @param {string[]} _features - 1D array of FEATURE values
-   * @param {string[]} _bonuses - 1D array of bonus IDs
-   * @param {Object[]} _rivers - 1D array of river objects
-   * @param {import('./utils.js').SeededRandom} _rng - Seeded RNG
+   * @param {Object[]} starts - Starting locations [{x, y}]
+   * @param {number[]} plotTypes - 1D array of PLOT values
+   * @param {string[]} terrain - 1D array of TERRAIN values
+   * @param {string[]} features - 1D array of FEATURE values
+   * @param {string[]} bonuses - 1D array of bonus IDs (mutated)
+   * @param {Object[]} _rivers - 1D array of river objects (unused)
+   * @param {import('./utils.js').SeededRandom} _rng - Seeded RNG (unused)
    */
-  normalizeAddExtras(_starts, _plotTypes, _terrain, _features, _bonuses, _rivers, _rng) {
-    // No-op in base class.
-    // Balanced.py overrides to place ALUMINUM, COAL, COPPER, HORSE, IRON, OIL, URANIUM
-    // within 5 tiles of each start, using 4 relaxation passes.
+  normalizeAddExtras(starts, plotTypes, terrain, features, bonuses, _rivers, _rng) {
+    const W = this.iNumPlotsX;
+    const H = this.iNumPlotsY;
+    const RADIUS = 5;
+
+    const resourcesToBalance = [
+      'aluminum', 'coal', 'copper', 'horse', 'iron', 'oil', 'uranium'
+    ];
+
+    for (const start of starts) {
+      // 1. Build candidate tiles within 11×11 area around start
+      const candidates = [];
+      for (let dy = -RADIUS; dy <= RADIUS; dy++) {
+        for (let dx = -RADIUS; dx <= RADIUS; dx++) {
+          let nx = start.x + dx;
+          let ny = start.y + dy;
+          if (this.wrapX) nx = ((nx % W) + W) % W;
+          else if (nx < 0 || nx >= W) continue;
+          if (ny < 0 || ny >= H) continue;
+          candidates.push({ x: nx, y: ny, idx: ny * W + nx });
+        }
+      }
+
+      // 2. Track which resources we've placed for this start
+      const placed = new Set();
+
+      // Check which resources already exist near this start
+      for (const resId of resourcesToBalance) {
+        if (candidates.some(c => bonuses[c.idx] === resId)) {
+          placed.add(resId);
+        }
+      }
+
+      // 3. Four relaxation passes
+      for (let pass = 0; pass < 4; pass++) {
+        const ignoreUniqueRange = pass >= 1;
+        const ignoreAdjacent    = pass >= 3;
+
+        for (const resId of resourcesToBalance) {
+          if (placed.has(resId)) continue;
+
+          const bonusDef = BONUS_DEFS.find(b => b.id === resId);
+          if (!bonusDef) continue;
+
+          for (const c of candidates) {
+            if (bonuses[c.idx]) continue; // already has a resource
+
+            if (!this._canPlaceBalancedBonus(
+              c.x, c.y, bonusDef, plotTypes, terrain, features, bonuses,
+              ignoreUniqueRange, ignoreAdjacent
+            )) continue;
+
+            bonuses[c.idx] = resId;
+            placed.add(resId);
+            break; // next resource
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Check if a strategic resource can be placed at (x, y) for balancing.
+   * Port of BonusBalancer.isBonusValid() + canHaveBonus().
+   */
+  _canPlaceBalancedBonus(x, y, bonusDef, plotTypes, terrain, features, bonuses,
+                          ignoreUniqueRange, ignoreAdjacent) {
+    const W = this.iNumPlotsX;
+    const H = this.iNumPlotsY;
+    const idx = y * W + x;
+    const plot = plotTypes[idx];
+    const feat = features[idx];
+
+    // Plot type checks
+    if (plot === PLOT.OCEAN || plot === PLOT.COAST || plot === PLOT.PEAK) return false;
+    if (bonusDef.requiresHills && plot !== PLOT.HILLS) return false;
+    if (bonusDef.requiresFlatlands && plot !== PLOT.LAND) return false;
+
+    // Feature check: some resources can't go on forest/jungle
+    if (bonusDef.features !== null && bonusDef.features !== undefined) {
+      if (bonusDef.features.length === 0 && feat) return false;
+      if (bonusDef.features.length > 0 && !bonusDef.features.includes(feat)) return false;
+    }
+
+    // Adjacency: no different bonus adjacent
+    if (!ignoreAdjacent) {
+      for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]]) {
+        let nx = x + dx;
+        let ny = y + dy;
+        if (this.wrapX) nx = ((nx % W) + W) % W;
+        else if (nx < 0 || nx >= W) continue;
+        if (ny < 0 || ny >= H) continue;
+        const nIdx = ny * W + nx;
+        if (bonuses[nIdx] && bonuses[nIdx] !== bonusDef.id) return false;
+      }
+    }
+
+    // Unique range: no same bonus within iUniqueRange
+    if (!ignoreUniqueRange && bonusDef.iUniqueRange) {
+      const range = bonusDef.iUniqueRange;
+      for (let dy = -range; dy <= range; dy++) {
+        for (let dx = -range; dx <= range; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          let nx = x + dx;
+          let ny = y + dy;
+          if (this.wrapX) nx = ((nx % W) + W) % W;
+          else if (nx < 0 || nx >= W) continue;
+          if (ny < 0 || ny >= H) continue;
+          if (bonuses[ny * W + nx] === bonusDef.id) return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   // ==========================================================================

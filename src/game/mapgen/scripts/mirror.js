@@ -14,6 +14,7 @@ import { FeatureGenerator } from '../FeatureGenerator.js';
 import { RiverGenerator } from '../RiverGenerator.js';
 import { BonusGenerator } from '../BonusGenerator.js';
 import { StartingPlots } from '../StartingPlots.js';
+import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
   getDefaultDimensions,
   resolveClimateSettings,
@@ -196,14 +197,34 @@ function assignStartsMirror(numPlayers, plotTypes1D, terrain1D, features1D,
 export default {
   id: 'mirror',
   name: 'Mirror',
+  description: 'Symmetrical map mirrored across one or two axes.',
+  isAdvancedMap: true,
   getWrapX()  { return false; },
   getWrapY()  { return false; },
   getTopLatitude()    { return 90; },
   getBottomLatitude() { return -90; },
   isClimateMap()  { return true; },
   isSeaLevelMap() { return false; },
+  isBonusIgnoreLatitude() { return false; },
+  startHumansOnSameTile() { return false; },
   minStartingDistanceModifier() { return -65; },
 
+  customOptions: [
+    {
+      id: 'mirror_type',
+      name: 'Mirror Type',
+      values: [
+        { id: 'reflection', label: 'Reflection' },
+        { id: 'inversion', label: 'Inversion' },
+        { id: 'copy', label: 'Copy' },
+        { id: 'opposite', label: 'Opposite' }
+      ],
+      default: 0,
+      allowRandom: true
+    }
+  ],
+
+  // Legacy single-option support
   customOption: {
     name: 'Mirror Type',
     values: ['Reflection', 'Inversion', 'Copy', 'Opposite'],
@@ -289,7 +310,12 @@ export default {
                                        W, H, transform, rng);
 
     // NO normalization (preserves symmetry)
+
+    // Goody huts
+    const gg = new GoodyGenerator(W, H, { wrapX: false, wrapY: false });
+    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
+
     return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts);
+                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
   }
 };

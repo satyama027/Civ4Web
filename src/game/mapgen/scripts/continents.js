@@ -12,6 +12,7 @@ import { FeatureGenerator } from '../FeatureGenerator.js';
 import { RiverGenerator } from '../RiverGenerator.js';
 import { BonusGenerator } from '../BonusGenerator.js';
 import { StartingPlots } from '../StartingPlots.js';
+import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
   getDefaultDimensions,
   resolveSeaLevelChange,
@@ -22,14 +23,18 @@ import {
 export default {
   id: 'continents',
   name: 'Continents',
+  description: 'Two to four large continents separated by ocean.',
+  isAdvancedMap: false,
   getWrapX()  { return true; },
   getWrapY()  { return false; },
   getTopLatitude()    { return 90; },
   getBottomLatitude() { return -90; },
   isClimateMap()  { return true; },
   isSeaLevelMap() { return true; },
+  isBonusIgnoreLatitude() { return false; },
+  startHumansOnSameTile() { return false; },
   minStartingDistanceModifier() { return 0; },
-  customOption: null,
+  customOptions: [],
   getGridSize() { return null; },
 
   generate(settings, rng) {
@@ -103,8 +108,12 @@ export default {
     // 10. Normalize
     sp.normalize(starts, plotTypes1D, terrain1D, features1D, bonuses1D, rivers1D, lakes1D, rng);
 
-    // 11. Convert to 2D and return
+    // 11. Add goody huts
+    const gg = new GoodyGenerator(W, H, { wrapX: true, wrapY: false });
+    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
+
+    // 12. Convert to 2D and return
     return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts);
+                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
   }
 };

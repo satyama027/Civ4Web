@@ -191,17 +191,17 @@ export class MultilayeredFractal {
     if (invert_heights) flags |= FRAC_INVERT_HEIGHTS;
 
     // 5. Init continent fractal (with or without rifts)
+    // Matching original Civ4: rift fractal is plain noise (flags=0),
+    // CENTER_RIFT goes on the continent fractal via fracInitRifts.
     if (rift_grain >= 0) {
       const riftsFrac = new CyFractal(regionFracXExp, regionFracYExp);
-      riftsFrac.fracInit(iRegionWidth, iRegionHeight, rift_grain, rng, flags);
+      riftsFrac.fracInit(iRegionWidth, iRegionHeight, rift_grain, rng, 0);
 
-      let riftFlags = flags;
-      if (has_center_rift) riftFlags |= FRAC_CENTER_RIFT;
-
+      if (has_center_rift) flags |= FRAC_CENTER_RIFT;
       continentsFrac.fracInitRifts(
         riftsFrac, has_center_rift,
         iRegionWidth, iRegionHeight,
-        iRegionGrain, rng, riftFlags
+        iRegionGrain, rng, flags
       );
     } else {
       continentsFrac.fracInit(

@@ -28,7 +28,7 @@ import { clamp, lerp } from './utils.js';
 /** Attenuate heights at poles using sin(PI * y / height) */
 export const FRAC_POLAR = 0x01;
 
-/** Create vertical rift channel at map center (12% width) */
+/** Create vertical rift channel at map center (12.5% half-width, 25% total zone) */
 export const FRAC_CENTER_RIFT = 0x02;
 
 /** Invert heights: maxHeight - height (used by Lakes map) */
@@ -128,10 +128,10 @@ export class CyFractal {
    * @param {number} flags - Bitmask of FRAC_* flags
    */
   fracInitRifts(riftsFrac, hasCenterRift, mapWidth, mapHeight, grain, rng, flags = 0) {
-    // Generate base fractal with only wrap flags — polar, invert, and center rift
-    // are applied once after rift modulation to avoid double attenuation
-    const baseFlags = flags & (FRAC_WRAP_X | FRAC_WRAP_Y);
-    this.fracInit(mapWidth, mapHeight, grain, rng, baseFlags);
+    // Matching original Civ4 C++: generate base continent fractal with ALL flags
+    // (CENTER_RIFT, POLAR, WRAP, etc.). fracInit applies center rift + polar
+    // attenuation and normalizes. Then rift modulation adds organic variation.
+    this.fracInit(mapWidth, mapHeight, grain, rng, flags);
 
     // Modulate by rift fractal
     // Where rift is low, continent heights are pulled down
@@ -154,15 +154,7 @@ export class CyFractal {
       }
     }
 
-    // Apply remaining attenuations (polar) — no intermediate normalize
-    if (flags & FRAC_POLAR) {
-      this._applyPolar();
-    }
-    if (flags & FRAC_INVERT_HEIGHTS) {
-      this._applyInvert();
-    }
-
-    // Single normalize after rift modulation + all attenuations compose
+    // Re-normalize after rift modulation
     this._normalizeGrid();
 
     // Invalidate cache
@@ -522,7 +514,9 @@ export class CyFractal {
 
   /**
    * Apply center rift attenuation.
-   * Creates ~25% width rift zone at horizontal center with cubic falloff.
+   * Creates a rift zone at horizontal center with linear falloff.
+   * Half-width is gridWidth/8 (~12.5%), matching Civ4's C++ CyFractal.
+   * Total rift zone spans ~25% of the grid width.
    * No normalization here — caller does a single normalize after all
    * attenuations compose.
    * @private
@@ -531,7 +525,7 @@ export class CyFractal {
     const w = this.gridWidth;
     const h = this.gridHeight;
     const centerX = w / 2;
-    const riftWidth = w * 0.25; // 25% of width — wide enough to guarantee ocean channel
+    const riftWidth = Math.floor(w / 8); // 12.5% half-width — matches Civ4 C++ CyFractal
 
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
@@ -540,12 +534,10 @@ export class CyFractal {
         dist = Math.min(dist, w - dist); // Handle wrap
 
         if (dist < riftWidth) {
-          // Cubic falloff: 0 at center, 1 at rift edge.
-          // Cubic keeps strong suppression over most of the rift zone,
-          // recovering only near the edge for organic coastlines.
+          // Linear falloff: 0 at center, 1 at rift edge.
+          // Matches Civ4's original linear attenuation.
           const t = dist / riftWidth;
-          const factor = t * t * t;
-          this.grid[y * w + x] *= factor;
+          this.grid[y * w + x] *= t;
         }
       }
     }
