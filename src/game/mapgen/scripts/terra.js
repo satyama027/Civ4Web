@@ -104,9 +104,9 @@ function generateTerraRegions(W, H, sea, grains, iFlags, climateConfig,
                                roll1, roll2, rng) {
   const mlf = new MultilayeredFractal(W, H, {
     seaLevelChange: sea,
-    hillGroupOneRange: climateConfig.hillRange,
-    hillGroupTwoRange: climateConfig.hillRange,
-    peakPercent: climateConfig.peakPercent,
+    hillGroupOneRange: climateConfig.iHillRange,
+    hillGroupTwoRange: climateConfig.iHillRange,
+    peakPercent: climateConfig.iPeakPercent,
     wrapX: true, wrapY: false
   });
 
@@ -406,9 +406,6 @@ export default {
     const plotTypes1D = generateTerraRegions(W, H, sea, grains, iFlags,
                                               climateConfig, roll1, roll2, rng);
 
-    // Coast tiles
-    TerrainGenerator.addCoastTiles(plotTypes1D, W, H, true, false);
-
     // Default terrain, rivers, features, bonuses
     const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false, mapSize });
     const terrain1D = tg.generateTerrain(rng, plotTypes1D);
@@ -418,8 +415,8 @@ export default {
     const lakes1D = riverGen.addLakes(plotTypes1D);
 
     const fg = new FeatureGenerator(W, H, {
-      jungleLatitude: climateConfig.jungleLatitude,
-      randIceLatitude: climateConfig.randIceLatitude,
+      jungleLatitude: climateConfig.iJungleLatitude,
+      randIceLatitude: climateConfig.fRandIceLatitude,
       mapSize,
       wrapX: true, wrapY: false
     });

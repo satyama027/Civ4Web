@@ -249,9 +249,9 @@ export default {
     // ── STAGE 1: Generate plot types (half map) ──
     const fw = new FractalWorld(W, H, {
       seaLevelChange: 0,
-      hillGroupOneRange: climateConfig.hillRange,
-      hillGroupTwoRange: climateConfig.hillRange,
-      peakPercent: climateConfig.peakPercent,
+      hillGroupOneRange: climateConfig.iHillRange,
+      hillGroupTwoRange: climateConfig.iHillRange,
+      peakPercent: climateConfig.iPeakPercent,
       wrapX: false, wrapY: false
     });
 
@@ -272,9 +272,6 @@ export default {
     // Mirror plot types
     mirrorArray(plotTypes1D, W, H, transform);
 
-    // Coast tiles
-    TerrainGenerator.addCoastTiles(plotTypes1D, W, H, false, false);
-
     // ── STAGE 2: Generate terrain + mirror ──
     const tg = new TerrainGenerator(W, H, { wrapX: false, wrapY: false, mapSize });
     const terrain1D = tg.generateTerrain(rng, plotTypes1D);
@@ -291,8 +288,8 @@ export default {
 
     // ── STAGE 5: Features + mirror ──
     const fg = new FeatureGenerator(W, H, {
-      jungleLatitude: climateConfig.jungleLatitude,
-      randIceLatitude: climateConfig.randIceLatitude,
+      jungleLatitude: climateConfig.iJungleLatitude,
+      randIceLatitude: climateConfig.fRandIceLatitude,
       mapSize,
       wrapX: false, wrapY: false
     });

@@ -58,9 +58,9 @@ class ISFeatureGenerator extends FeatureGenerator {
 function generateInlandSeaPlots(W, H, seaLevelChange, climateConfig, rng) {
   const hw = new HintedWorld(W, H, 4, 2, {
     seaLevelChange,
-    hillGroupOneRange: climateConfig.hillRange,
-    hillGroupTwoRange: climateConfig.hillRange,
-    peakPercent: climateConfig.peakPercent,
+    hillGroupOneRange: climateConfig.iHillRange,
+    hillGroupTwoRange: climateConfig.iHillRange,
+    peakPercent: climateConfig.iPeakPercent,
     wrapX: false,
     wrapY: false
   });
@@ -105,7 +105,7 @@ function addInlandSeaRivers(rng, plotTypes1D, terrain1D, W, H) {
   for (let y = 1; y < H - 1; y++) {
     for (let x = 1; x < W - 1; x++) {
       const idx = y * W + x;
-      if (plotTypes1D[idx] === PLOT.OCEAN || plotTypes1D[idx] === PLOT.COAST) continue;
+      if (plotTypes1D[idx] === PLOT.OCEAN) continue;
       if (plotTypes1D[idx] === PLOT.PEAK) continue;
       const dist = Math.abs(x - centerX) + Math.abs(y - centerY);
       candidates.push({ x, y, dist });
@@ -134,7 +134,7 @@ function addInlandSeaRivers(rng, plotTypes1D, terrain1D, W, H) {
       const idx = cy * W + cx;
 
       // Stop at water
-      if (plotTypes1D[idx] === PLOT.OCEAN || plotTypes1D[idx] === PLOT.COAST) break;
+      if (plotTypes1D[idx] === PLOT.OCEAN) break;
 
       // Determine direction toward center
       const dx = centerX - cx;
@@ -284,7 +284,7 @@ function assignStartsInlandSea(numPlayers, plotTypes1D, terrain1D, features1D,
           if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
 
           const idx = ny * W + nx;
-          if (plotTypes1D[idx] === PLOT.OCEAN || plotTypes1D[idx] === PLOT.COAST ||
+          if (plotTypes1D[idx] === PLOT.OCEAN ||
               plotTypes1D[idx] === PLOT.PEAK) continue;
 
           // Check distance from existing starts
@@ -360,9 +360,6 @@ export default {
     // Generate plot types (ring of land around central sea)
     const plotTypes1D = generateInlandSeaPlots(W, H, seaLevelChange, climateConfig, rng);
 
-    // Coast tiles
-    TerrainGenerator.addCoastTiles(plotTypes1D, W, H, false, false);
-
     // Custom terrain with latitude compression (no snow/ice)
     const tg = new ISTerrainGenerator(W, H, {
       wrapX: false, wrapY: false,
@@ -380,8 +377,8 @@ export default {
 
     // Custom features with latitude compression
     const fg = new ISFeatureGenerator(W, H, {
-      jungleLatitude: climateConfig.jungleLatitude,
-      randIceLatitude: climateConfig.randIceLatitude,
+      jungleLatitude: climateConfig.iJungleLatitude,
+      randIceLatitude: climateConfig.fRandIceLatitude,
       wrapX: false, wrapY: false,
       topLatitude: 60, bottomLatitude: -60,
       mapSize

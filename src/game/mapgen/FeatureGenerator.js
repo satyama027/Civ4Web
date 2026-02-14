@@ -95,7 +95,8 @@ export class FeatureGenerator {
 
     // Ice latitude parameter (from CIV4ClimateInfo.xml fRandIceLatitude)
     // NOT random — this is a fixed climate parameter despite the name
-    this.randIceLatitude = settings.randIceLatitude ?? 0.30;
+    // Default 0.25 matches CLIMATE_TEMPERATE XML value
+    this.randIceLatitude = settings.randIceLatitude ?? 0.25;
 
     // Map size key for exact XML grain lookup
     this.mapSize = settings.mapSize || 'standard';
@@ -274,7 +275,7 @@ export class FeatureGenerator {
   canHaveFeature(featureType, plotType, terrainType) {
     switch (featureType) {
       case FEATURE.ICE:
-        return (plotType === PLOT.OCEAN || plotType === PLOT.COAST);
+        return (plotType === PLOT.OCEAN);
 
       case FEATURE.JUNGLE:
         if (plotType !== PLOT.LAND && plotType !== PLOT.HILLS) return false;
@@ -546,7 +547,7 @@ export class FeatureGenerator {
 
         const nIdx = ny * W + nx;
         // No oasis adjacent to water
-        if (plotTypes[nIdx] === PLOT.OCEAN || plotTypes[nIdx] === PLOT.COAST) return;
+        if (plotTypes[nIdx] === PLOT.OCEAN) return;
         // No oasis adjacent to another oasis
         if (features[nIdx] === FEATURE.OASIS) return;
       }

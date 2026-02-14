@@ -129,8 +129,9 @@ export const BONUS_DEFS = [
     id: 'oil',
     bonusClass: BONUS_CLASS.MODERN,
     terrain: [TERRAIN.DESERT, TERRAIN.TUNDRA, TERRAIN.COAST],
-    plotTypes: [PLOT.LAND, PLOT.COAST],
+    plotTypes: [PLOT.LAND, PLOT.OCEAN],
     features: null,
+    terrainTypes: [TERRAIN.COAST],     // water tiles must be coast terrain
     requiresHills: false,
     requiresFlatlands: true,           // flat land OR coast
     waterOnly: false,                  // can be on land OR water
@@ -318,8 +319,9 @@ export const BONUS_DEFS = [
     id: 'whale',
     bonusClass: BONUS_CLASS.LUXURY,
     terrain: [TERRAIN.COAST],
-    plotTypes: [PLOT.COAST],
+    plotTypes: [PLOT.OCEAN],
     features: null,
+    terrainTypes: [TERRAIN.COAST],     // water tiles must be coast terrain
     requiresHills: false,
     requiresFlatlands: false,
     waterOnly: true,
@@ -346,8 +348,9 @@ export const BONUS_DEFS = [
     id: 'clam',
     bonusClass: BONUS_CLASS.FOOD,
     terrain: [TERRAIN.COAST],
-    plotTypes: [PLOT.COAST],
+    plotTypes: [PLOT.OCEAN],
     features: null,
+    terrainTypes: [TERRAIN.COAST],     // water tiles must be coast terrain
     waterOnly: true,
     isOneArea: false,
     iUniqueRange: 3,
@@ -383,8 +386,9 @@ export const BONUS_DEFS = [
     id: 'crab',
     bonusClass: BONUS_CLASS.FOOD,
     terrain: [TERRAIN.COAST],
-    plotTypes: [PLOT.COAST],
+    plotTypes: [PLOT.OCEAN],
     features: null,
+    terrainTypes: [TERRAIN.COAST],     // water tiles must be coast terrain
     waterOnly: true,
     isOneArea: false,
     iUniqueRange: 3,
@@ -407,8 +411,9 @@ export const BONUS_DEFS = [
     id: 'fish',
     bonusClass: BONUS_CLASS.FOOD,
     terrain: [TERRAIN.COAST],
-    plotTypes: [PLOT.COAST],
+    plotTypes: [PLOT.OCEAN],
     features: null,
+    terrainTypes: [TERRAIN.COAST],     // water tiles must be coast terrain
     waterOnly: true,
     isOneArea: false,
     iUniqueRange: 3,
@@ -693,7 +698,7 @@ export class BonusGenerator {
 
     // 2. Water-only check
     if (bonusDef.waterOnly) {
-      if (plot !== PLOT.OCEAN && plot !== PLOT.COAST) return false;
+      if (plot !== PLOT.OCEAN) return false;
     } else {
       if (plot === PLOT.OCEAN) return false;
     }
@@ -704,11 +709,16 @@ export class BonusGenerator {
     // 4. Terrain check (skip for hills-only resources where terrain is irrelevant)
     if (bonusDef.terrain && !bonusDef.terrain.includes(terr)) return false;
 
+    // 4b. Terrain type restriction for water tiles (e.g. fish/clam/crab must be on TERRAIN.COAST, not deep ocean)
+    if (bonusDef.terrainTypes && plot === PLOT.OCEAN) {
+      if (!bonusDef.terrainTypes.includes(terr)) return false;
+    }
+
     // 5. Hills requirement
     if (bonusDef.requiresHills && plot !== PLOT.HILLS) return false;
 
     // 6. Flatlands requirement
-    if (bonusDef.requiresFlatlands && plot !== PLOT.LAND && plot !== PLOT.COAST) return false;
+    if (bonusDef.requiresFlatlands && plot !== PLOT.LAND) return false;
 
     // 7. No peaks
     if (plot === PLOT.PEAK) return false;

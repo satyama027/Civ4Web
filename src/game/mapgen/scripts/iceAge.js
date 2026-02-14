@@ -96,7 +96,7 @@ class IceAgeFeatureGenerator extends FeatureGenerator {
     const H = this.iNumPlotsY;
     const idx = y * W + x;
 
-    if (plotTypes[idx] !== PLOT.OCEAN && plotTypes[idx] !== PLOT.COAST) return;
+    if (plotTypes[idx] !== PLOT.OCEAN) return;
 
     // Edge rows: always ice
     if (y === 0 || y === H - 1) {
@@ -129,9 +129,9 @@ function generateIceAgePlots(W, H, seaLevelChange, climateConfig, grainConfig, r
     seaLevelChange,
     seaLevelMin: 60,
     seaLevelMax: 72,
-    hillGroupOneRange: climateConfig.hillRange,
-    hillGroupTwoRange: climateConfig.hillRange,
-    peakPercent: climateConfig.peakPercent,
+    hillGroupOneRange: climateConfig.iHillRange,
+    hillGroupTwoRange: climateConfig.iHillRange,
+    peakPercent: climateConfig.iPeakPercent,
     wrapX: true, wrapY: false
   });
 
@@ -219,9 +219,6 @@ export default {
     // Generate plot types
     const plotTypes1D = generateIceAgePlots(W, H, seaLevelChange, climateConfig, grainConfig, rng);
 
-    // Coast tiles
-    TerrainGenerator.addCoastTiles(plotTypes1D, W, H, true, false);
-
     // Custom terrain
     const tg = new IceAgeTerrainGenerator(W, H, { mapSize });
     const terrain1D = tg.generateTerrain(rng, plotTypes1D);
@@ -233,7 +230,7 @@ export default {
 
     // Custom features (aggressive ice)
     const fg = new IceAgeFeatureGenerator(W, H, {
-      randIceLatitude: climateConfig.randIceLatitude,
+      randIceLatitude: climateConfig.fRandIceLatitude,
       mapSize
     });
     const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);

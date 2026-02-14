@@ -57,17 +57,60 @@ export function resolveSeaLevelChange(seaLevel) {
 }
 
 /**
- * Return climate-dependent parameters for terrain/feature generators.
+ * Return climate-dependent parameters matching CIV4ClimateInfo.xml exactly.
+ *
+ * Field names mirror the XML element names:
+ * - iHillRange, iPeakPercent: FractalWorld hill/peak thresholds
+ * - iJungleLatitude: FeatureGenerator jungle falloff (integer, used in formula)
+ * - fRandIceLatitude, fIceLatitude: FeatureGenerator ice thresholds
+ * - iDesertPercentChange: additive change to TerrainGenerator's base 32% desert
+ * - f*LatitudeChange: additive changes to TerrainGenerator base latitude thresholds
+ *
  * @param {string} climate
- * @returns {{ hillRange: number, peakPercent: number, jungleLatitude: number }}
+ * @returns {Object} Climate configuration matching CIV4ClimateInfo.xml
  */
 export function resolveClimateSettings(climate) {
   const configs = {
-    tropical:  { hillRange: 8,  peakPercent: 5,  jungleLatitude: 0.40, randIceLatitude: 0.30 },
-    temperate: { hillRange: 9,  peakPercent: 4,  jungleLatitude: 0.15, randIceLatitude: 0.30 },
-    rocky:     { hillRange: 12, peakPercent: 7,  jungleLatitude: 0.05, randIceLatitude: 0.30 },
-    arid:      { hillRange: 7,  peakPercent: 3,  jungleLatitude: 0.00, randIceLatitude: 0.30 },
-    cold:      { hillRange: 9,  peakPercent: 4,  jungleLatitude: 0.00, randIceLatitude: 0.60 }
+    temperate: {
+      iHillRange: 5, iPeakPercent: 25, iJungleLatitude: 5,
+      fRandIceLatitude: 0.25, fIceLatitude: 0.95,
+      iDesertPercentChange: 0,
+      fSnowLatitudeChange: 0.0, fTundraLatitudeChange: 0.0,
+      fGrassLatitudeChange: 0.0,
+      fDesertBottomLatitudeChange: 0.0, fDesertTopLatitudeChange: 0.0
+    },
+    tropical: {
+      iHillRange: 5, iPeakPercent: 25, iJungleLatitude: 2,
+      fRandIceLatitude: 0.20, fIceLatitude: 0.95,
+      iDesertPercentChange: -10,
+      fSnowLatitudeChange: 0.1, fTundraLatitudeChange: 0.1,
+      fGrassLatitudeChange: 0.0,
+      fDesertBottomLatitudeChange: 0.0, fDesertTopLatitudeChange: 0.0
+    },
+    arid: {
+      iHillRange: 5, iPeakPercent: 25, iJungleLatitude: 6,
+      fRandIceLatitude: 0.20, fIceLatitude: 0.95,
+      iDesertPercentChange: 20,
+      fSnowLatitudeChange: 0.0, fTundraLatitudeChange: 0.0,
+      fGrassLatitudeChange: 0.0,
+      fDesertBottomLatitudeChange: -0.1, fDesertTopLatitudeChange: 0.1
+    },
+    rocky: {
+      iHillRange: 7, iPeakPercent: 35, iJungleLatitude: 5,
+      fRandIceLatitude: 0.25, fIceLatitude: 0.95,
+      iDesertPercentChange: 0,
+      fSnowLatitudeChange: -0.025, fTundraLatitudeChange: -0.05,
+      fGrassLatitudeChange: 0.0,
+      fDesertBottomLatitudeChange: 0.0, fDesertTopLatitudeChange: -0.05
+    },
+    cold: {
+      iHillRange: 5, iPeakPercent: 25, iJungleLatitude: 6,
+      fRandIceLatitude: 0.50, fIceLatitude: 0.90,
+      iDesertPercentChange: -10,
+      fSnowLatitudeChange: -0.1, fTundraLatitudeChange: -0.15,
+      fGrassLatitudeChange: 0.0,
+      fDesertBottomLatitudeChange: 0.0, fDesertTopLatitudeChange: -0.1
+    }
   };
   return configs[climate] || configs.temperate;
 }
@@ -113,7 +156,7 @@ export function findBiggestLandArea(plotTypes, W, H, wrapX) {
     for (let x = 0; x < W; x++) {
       const idx = y * W + x;
       if (areas[idx] !== -1) continue;
-      if (plotTypes[idx] === PLOT.OCEAN || plotTypes[idx] === PLOT.COAST) continue;
+      if (plotTypes[idx] === PLOT.OCEAN) continue;
 
       const areaId = nextId++;
       let size = 0;
@@ -131,7 +174,7 @@ export function findBiggestLandArea(plotTypes, W, H, wrapX) {
           if (ny < 0 || ny >= H) continue;
           const nIdx = ny * W + nx;
           if (areas[nIdx] !== -1) continue;
-          if (plotTypes[nIdx] === PLOT.OCEAN || plotTypes[nIdx] === PLOT.COAST) continue;
+          if (plotTypes[nIdx] === PLOT.OCEAN) continue;
           areas[nIdx] = areaId;
           queue.push({ x: nx, y: ny });
         }
@@ -181,7 +224,7 @@ export function removeCoastalPeaks(plotTypes1D, W, H, wrapX) {
           else if (nx < 0 || nx >= W) continue;
           if (ny < 0 || ny >= H) continue;
           const nPlot = plotTypes1D[ny * W + nx];
-          if (nPlot === PLOT.OCEAN || nPlot === PLOT.COAST) {
+          if (nPlot === PLOT.OCEAN) {
             isCoastal = true;
           }
         }
@@ -239,7 +282,7 @@ export function scoreCitySite(cx, cy, plotTypes1D, terrain1D, features1D,
     const feat = features1D[idx];
     const bonus = bonuses1D[idx];
 
-    if (plot === PLOT.OCEAN || plot === PLOT.COAST) {
+    if (plot === PLOT.OCEAN) {
       if (bonus) score += 2;
       score += 1; // coastal access
       continue;

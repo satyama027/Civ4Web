@@ -328,7 +328,7 @@ export class StartingPlots {
 
     // Must be land (not water, not peak)
     const plot = plotTypes[idx];
-    if (plot === PLOT.OCEAN || plot === PLOT.COAST || plot === PLOT.PEAK) return -999;
+    if (plot === PLOT.OCEAN || plot === PLOT.PEAK) return -999;
 
     let score = 0;
     let hasFreshWater = false;
@@ -396,7 +396,7 @@ export class StartingPlots {
 
         // Coast (within 1 tile for coastal access)
         if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
-          if (nTerr === TERRAIN.COAST || nPlot === PLOT.COAST) {
+          if (nTerr === TERRAIN.COAST) {
             hasCoast = true;
           }
         }
@@ -615,7 +615,7 @@ export class StartingPlots {
       for (const [nx, ny] of this._getTilesInRadius(start.x, start.y, 1)) {
         const idx = ny * W + nx;
         const plot = plotTypes[idx];
-        if (plot === PLOT.OCEAN || plot === PLOT.COAST) continue;
+        if (plot === PLOT.OCEAN) continue;
 
         const terr = terrain[idx];
         if (terr === TERRAIN.DESERT) {
@@ -678,7 +678,7 @@ export class StartingPlots {
           if (def.requiresFlatlands && plot !== PLOT.LAND) continue;
           if (def.noFeature && feat !== FEATURE.NONE) continue;
           if (def.features && !def.features.includes(feat)) continue;
-          if (plot === PLOT.OCEAN || plot === PLOT.COAST || plot === PLOT.PEAK) continue;
+          if (plot === PLOT.OCEAN || plot === PLOT.PEAK) continue;
 
           candidates.push({ x: nx, y: ny, bonusId: foodId });
           break;  // first match for this tile
@@ -833,7 +833,7 @@ export class StartingPlots {
     const feat = features[idx];
 
     // Plot type checks
-    if (plot === PLOT.OCEAN || plot === PLOT.COAST || plot === PLOT.PEAK) return false;
+    if (plot === PLOT.OCEAN || plot === PLOT.PEAK) return false;
     if (bonusDef.requiresHills && plot !== PLOT.HILLS) return false;
     if (bonusDef.requiresFlatlands && plot !== PLOT.LAND) return false;
 
@@ -996,7 +996,7 @@ export class StartingPlots {
       const plot = plotTypes[idx];
       const terr = terrain[idx];
 
-      if (plot === PLOT.OCEAN || plot === PLOT.COAST || plot === PLOT.PEAK) continue;
+      if (plot === PLOT.OCEAN || plot === PLOT.PEAK) continue;
 
       let score = 0;
       if (plot === PLOT.LAND) score += 2;  // prefer flat

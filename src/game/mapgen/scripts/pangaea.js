@@ -200,9 +200,9 @@ function generateMultilayered(W, H, typeIndex, seaLevelChange, climateConfig, wo
 
   const mlf = new MultilayeredFractal(W, H, {
     seaLevelChange: sea,
-    hillGroupOneRange: climateConfig.hillRange,
-    hillGroupTwoRange: climateConfig.hillRange,
-    peakPercent: climateConfig.peakPercent,
+    hillGroupOneRange: climateConfig.iHillRange,
+    hillGroupTwoRange: climateConfig.iHillRange,
+    peakPercent: climateConfig.iPeakPercent,
     wrapX: true, wrapY: false
   });
 
@@ -326,9 +326,9 @@ function generateMultilayered(W, H, typeIndex, seaLevelChange, climateConfig, wo
 function generateSorensHinted(W, H, seaLevelChange, climateConfig, rng) {
   const hw = new HintedWorld(W, H, 8, 4, {
     seaLevelChange,
-    hillGroupOneRange: climateConfig.hillRange,
-    hillGroupTwoRange: climateConfig.hillRange,
-    peakPercent: climateConfig.peakPercent,
+    hillGroupOneRange: climateConfig.iHillRange,
+    hillGroupTwoRange: climateConfig.iHillRange,
+    peakPercent: climateConfig.iPeakPercent,
     wrapX: true, wrapY: false
   });
 
@@ -380,9 +380,9 @@ function generateAndysHinted(W, H, seaLevelChange, climateConfig, rng) {
   for (let retry = 0; retry <= maxRetries; retry++) {
     const hw = new HintedWorld(W, H, 16, 8, {
       seaLevelChange,
-      hillGroupOneRange: climateConfig.hillRange,
-      hillGroupTwoRange: climateConfig.hillRange,
-      peakPercent: climateConfig.peakPercent,
+      hillGroupOneRange: climateConfig.iHillRange,
+      hillGroupTwoRange: climateConfig.iHillRange,
+      peakPercent: climateConfig.iPeakPercent,
       wrapX: true, wrapY: false
     });
 
@@ -412,9 +412,9 @@ function generateAndysHinted(W, H, seaLevelChange, climateConfig, rng) {
   // Should not reach here, but fallback
   const hw = new HintedWorld(W, H, 16, 8, {
     seaLevelChange,
-    hillGroupOneRange: climateConfig.hillRange,
-    hillGroupTwoRange: climateConfig.hillRange,
-    peakPercent: climateConfig.peakPercent,
+    hillGroupOneRange: climateConfig.iHillRange,
+    hillGroupTwoRange: climateConfig.iHillRange,
+    peakPercent: climateConfig.iPeakPercent,
     wrapX: true, wrapY: false
   });
   const numBlocksLand = Math.floor(128 * 0.33);
@@ -488,7 +488,7 @@ function applyCohesionRepair(plotTypes1D, _terrain1D, W, H, pangaeaType,
 
   let totalLand = 0;
   for (let i = 0; i < W * H; i++) {
-    if (plotTypes1D[i] !== PLOT.OCEAN && plotTypes1D[i] !== PLOT.COAST) {
+    if (plotTypes1D[i] !== PLOT.OCEAN) {
       totalLand++;
     }
   }
@@ -529,7 +529,7 @@ function applyCohesionRepair(plotTypes1D, _terrain1D, W, H, pangaeaType,
 
       const globalIdx = globalY * W + globalX;
 
-      if (plotTypes1D[globalIdx] !== PLOT.OCEAN && plotTypes1D[globalIdx] !== PLOT.COAST) {
+      if (plotTypes1D[globalIdx] !== PLOT.OCEAN) {
         continue;
       }
 
@@ -551,8 +551,6 @@ function applyCohesionRepair(plotTypes1D, _terrain1D, W, H, pangaeaType,
     }
   }
 
-  // Re-apply coast tiles after repair
-  TerrainGenerator.addCoastTiles(plotTypes1D, W, H, true, false);
 }
 
 // ============================================================================
@@ -695,9 +693,6 @@ export default {
         break;
     }
 
-    // Add coast tiles
-    TerrainGenerator.addCoastTiles(plotTypes1D, W, H, true, false);
-
     // Terrain (default generator)
     const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false, mapSize });
     const terrain1D = tg.generateTerrain(rng, plotTypes1D);
@@ -713,8 +708,8 @@ export default {
 
     // Features (default generator)
     const fg = new FeatureGenerator(W, H, {
-      jungleLatitude: climateConfig.jungleLatitude,
-      randIceLatitude: climateConfig.randIceLatitude,
+      jungleLatitude: climateConfig.iJungleLatitude,
+      randIceLatitude: climateConfig.fRandIceLatitude,
       mapSize,
       wrapX: true, wrapY: false
     });

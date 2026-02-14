@@ -110,7 +110,7 @@ function scoreRegion(cx, cy, radius, plotTypes1D, terrain1D, features1D,
       const plot = plotTypes1D[idx];
       const terr = terrain1D[idx];
 
-      if (plot === PLOT.OCEAN || plot === PLOT.COAST) {
+      if (plot === PLOT.OCEAN) {
         if (bonuses1D[idx]) score += 2;
         continue;
       }
@@ -142,7 +142,7 @@ function findBestTileInRadius(cx, cy, radius, plotTypes1D, terrain1D,
 
       const idx = ny * W + nx;
       const plot = plotTypes1D[idx];
-      if (plot === PLOT.OCEAN || plot === PLOT.COAST || plot === PLOT.PEAK) continue;
+      if (plot === PLOT.OCEAN || plot === PLOT.PEAK) continue;
 
       const score = scoreCitySite(nx, ny, plotTypes1D, terrain1D,
                                    features1D, bonuses1D, W, H, wrapX);
@@ -262,13 +262,13 @@ export default {
     const grainMap = [3, 4, 5];
     const continent_grain = grainMap[optionIndex] || 4;
     const extraPeaks = 15 * (1 + optionIndex);
-    const adjustedPeakPercent = clamp(climateConfig.peakPercent + extraPeaks, 0, 100);
+    const adjustedPeakPercent = clamp(climateConfig.iPeakPercent + extraPeaks, 0, 100);
 
     // 3. Generate plot types
     const fw = new FractalWorld(W, H, {
       seaLevelChange,
-      hillGroupOneRange: climateConfig.hillRange,
-      hillGroupTwoRange: climateConfig.hillRange,
+      hillGroupOneRange: climateConfig.iHillRange,
+      hillGroupTwoRange: climateConfig.iHillRange,
       peakPercent: adjustedPeakPercent,
       wrapX: true,
       wrapY: false
@@ -288,10 +288,7 @@ export default {
       shift_plot_types: true
     });
 
-    // 4. Add coast tiles
-    TerrainGenerator.addCoastTiles(plotTypes1D, W, H, true, false);
-
-    // 5. Remove coastal peaks (Archipelago-specific)
+    // 4. Remove coastal peaks (Archipelago-specific)
     removeCoastalPeaks(plotTypes1D, W, H, true);
 
     // 6. Generate terrain
@@ -305,8 +302,8 @@ export default {
 
     // 8. Add features
     const fg = new FeatureGenerator(W, H, {
-      jungleLatitude: climateConfig.jungleLatitude,
-      randIceLatitude: climateConfig.randIceLatitude,
+      jungleLatitude: climateConfig.iJungleLatitude,
+      randIceLatitude: climateConfig.fRandIceLatitude,
       mapSize,
       wrapX: true, wrapY: false
     });

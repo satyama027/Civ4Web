@@ -155,7 +155,7 @@ class OasisTerrainGenerator extends TerrainGenerator {
   }
 
   generateTerrainAtPlot(x, y, plotType, existingTerrain) {
-    if (plotType === PLOT.OCEAN || plotType === PLOT.COAST) return existingTerrain;
+    if (plotType === PLOT.OCEAN) return existingTerrain;
 
     const lat = this.getLatitudeAtPlot(x, y);
 
@@ -270,8 +270,7 @@ function addNileRivers(rng, plotTypes1D, terrain1D, W, H, mapSize) {
       }
 
       // Stop at water
-      if (y < H && (plotTypes1D[y * W + x] === PLOT.OCEAN ||
-                     plotTypes1D[y * W + x] === PLOT.COAST)) {
+      if (y < H && plotTypes1D[y * W + x] === PLOT.OCEAN) {
         break;
       }
     }
@@ -309,9 +308,6 @@ export default {
 
     // Generate plot types
     const plotTypes1D = generateOasisPlots(W, H, rng);
-
-    // Coast tiles
-    TerrainGenerator.addCoastTiles(plotTypes1D, W, H, false, false);
 
     // Custom 4-band terrain
     const tg = new OasisTerrainGenerator(W, H, { mapSize });

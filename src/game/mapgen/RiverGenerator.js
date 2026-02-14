@@ -170,7 +170,7 @@ export class RiverGenerator {
 
       for (let i = 0; i < W * H; i++) {
         const plot = plotTypes[i];
-        if (plot === PLOT.OCEAN || plot === PLOT.COAST) continue;
+        if (plot === PLOT.OCEAN) continue;
 
         const x = i % W;
         const y = Math.floor(i / W);
@@ -252,7 +252,7 @@ export class RiverGenerator {
             }
 
             const nPlot = plotTypes[ny * W + nx];
-            if (nPlot === PLOT.OCEAN || nPlot === PLOT.COAST) {
+            if (nPlot === PLOT.OCEAN) {
               allLand = false;
             }
           }
@@ -291,9 +291,9 @@ export class RiverGenerator {
     const values = new Array(W * H);
 
     // Map our plot types to Civ4's (NUM_PLOT_TYPES - civ4Type) values:
-    // Our PEAK(4)→4, HILLS(3)→3, LAND(2)→2, COAST(1)→1, OCEAN(0)→1
-    const selfWeight = [1, 1, 2, 3, 4]; // indexed by our PLOT enum
-    const neighborWeight = [1, 1, 2, 3, 4]; // same mapping
+    // Our OCEAN(0)→1, LAND(1)→2, HILLS(2)→3, PEAK(3)→4
+    const selfWeight = [1, 2, 3, 4]; // indexed by our PLOT enum
+    const neighborWeight = [1, 2, 3, 4]; // same mapping
 
     // 8-direction offsets (N, NE, E, SE, S, SW, W, NW)
     const dirs8 = [
@@ -461,7 +461,7 @@ export class RiverGenerator {
       const nIdx = ny * this.iNumPlotsX + nx;
 
       // Stop if destination is water (river has reached the coast)
-      if (plotTypes[nIdx] === PLOT.OCEAN || plotTypes[nIdx] === PLOT.COAST) break;
+      if (plotTypes[nIdx] === PLOT.OCEAN) break;
 
       // Check if this edge already has a river (avoid crossing)
       if (this._edgeHasRiver(x, y, lastDir, rivers)) break;
@@ -686,7 +686,7 @@ export class RiverGenerator {
         if (ny < 0 || ny >= H) continue;
 
         const plot = plotTypes[ny * W + nx];
-        if (plot === PLOT.OCEAN || plot === PLOT.COAST) return true;
+        if (plot === PLOT.OCEAN) return true;
       }
     }
 
@@ -717,7 +717,7 @@ export class RiverGenerator {
       if (ny < 0 || ny >= H) continue;
 
       const plot = plotTypes[ny * W + nx];
-      if (plot === PLOT.OCEAN || plot === PLOT.COAST) return true;
+      if (plot === PLOT.OCEAN) return true;
     }
 
     return false;

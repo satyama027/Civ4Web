@@ -10,7 +10,6 @@
  */
 
 import { FractalWorld, PLOT } from '../FractalWorld.js';
-import { TerrainGenerator } from '../TerrainGenerator.js';
 import {
   resolveSeaLevelChange,
   resolveClimateSettings,
@@ -59,9 +58,9 @@ export default {
       seaLevelChange,
       seaLevelMin: 7,
       seaLevelMax: 14,
-      hillGroupOneRange: climateConfig.hillRange,
-      hillGroupTwoRange: climateConfig.hillRange,
-      peakPercent: climateConfig.peakPercent,
+      hillGroupOneRange: climateConfig.iHillRange,
+      hillGroupTwoRange: climateConfig.iHillRange,
+      peakPercent: climateConfig.iPeakPercent,
       wrapX: true, wrapY: false
     });
 
@@ -84,8 +83,6 @@ export default {
       plotTypes[0 * W + x] = PLOT.OCEAN;
       plotTypes[(H - 1) * W + x] = PLOT.OCEAN;
     }
-
-    TerrainGenerator.addCoastTiles(plotTypes, W, H, true, false);
 
     return plotTypes;
   },

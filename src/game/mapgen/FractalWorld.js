@@ -19,6 +19,7 @@
 
 import { CyFractal, FRAC_POLAR, FRAC_CENTER_RIFT, FRAC_INVERT_HEIGHTS, FRAC_WRAP_X, FRAC_WRAP_Y } from './CyFractal.js';
 import { clamp } from './utils.js';
+import { resolveClimateSettings, resolveSeaLevelChange } from './scripts/_helpers.js';
 
 // ============================================================================
 // PLOT TYPE ENUM
@@ -27,12 +28,15 @@ import { clamp } from './utils.js';
 /**
  * Plot types matching Civ4's PlotTypes enum
  */
+/**
+ * Plot types matching Civ4's PlotTypes enum exactly.
+ * Civ4 has only 4 plot types. Coast is a TERRAIN type, not a plot type.
+ */
 export const PLOT = {
   OCEAN: 0,
-  COAST: 1,  // Added by addCoastTiles() later, not by FractalWorld
-  LAND: 2,
-  HILLS: 3,
-  PEAK: 4
+  LAND: 1,
+  HILLS: 2,
+  PEAK: 3
 };
 
 // ============================================================================
@@ -49,20 +53,28 @@ export const PLOT = {
  */
 export class FractalWorld {
   /**
-   * Create a new FractalWorld instance
+   * Create a new FractalWorld instance.
+   *
+   * Mirrors Python FractalWorld.__init__() which reads climate and sea level
+   * from the C++ engine. When a settings object with `climate`/`seaLevel`
+   * keys is passed, these are resolved automatically. Direct parameter
+   * overrides (hillGroupOneRange, etc.) still work for scripts that need
+   * custom values.
    *
    * @param {number} mapWidth - Map width in tiles
    * @param {number} mapHeight - Map height in tiles
    * @param {Object} settings - Configuration settings
-   * @param {number} settings.fracXExp - X-axis fractal exponent (default 7)
-   * @param {number} settings.fracYExp - Y-axis fractal exponent (default 6)
-   * @param {number} settings.seaLevelChange - Sea level adjustment (-5 low, 0 medium, +5 high)
-   * @param {number} settings.hillGroupOneRange - Hills band 1 range (default 9)
-   * @param {number} settings.hillGroupTwoRange - Hills band 2 range (default 9)
-   * @param {number} settings.peakPercent - Peak percentage (default 4)
-   * @param {number} settings.stripRadius - Shift strip radius (default 15)
-   * @param {boolean} settings.wrapX - X-axis wrapping (default true)
-   * @param {boolean} settings.wrapY - Y-axis wrapping (default false)
+   * @param {string} [settings.climate] - Climate type → auto-resolve hills/peaks
+   * @param {string} [settings.seaLevel] - Sea level → auto-resolve seaLevelChange
+   * @param {number} [settings.seaLevelChange] - Direct sea level adjustment override
+   * @param {number} [settings.hillGroupOneRange] - Direct hills band 1 range override
+   * @param {number} [settings.hillGroupTwoRange] - Direct hills band 2 range override
+   * @param {number} [settings.peakPercent] - Direct peak percentage override
+   * @param {number} [settings.fracXExp=7] - X-axis fractal exponent
+   * @param {number} [settings.fracYExp=6] - Y-axis fractal exponent
+   * @param {number} [settings.stripRadius=15] - Shift strip radius
+   * @param {boolean} [settings.wrapX=true] - X-axis wrapping
+   * @param {boolean} [settings.wrapY=false] - Y-axis wrapping
    */
   constructor(mapWidth, mapHeight, settings = {}) {
     // Map dimensions
@@ -81,20 +93,32 @@ export class FractalWorld {
     this.hillsFrac = new CyFractal(this.fracXExp, this.fracYExp);
     this.peaksFrac = new CyFractal(this.fracXExp, this.fracYExp);
 
+    // Resolve climate-dependent hill/peak params (mirrors Python reading from C++ engine)
+    // Direct overrides take priority; else resolve from climate string; else use temperate defaults
+    const climateConfig = settings.climate ? resolveClimateSettings(settings.climate) : null;
+
     // Sea level configuration
-    this.seaLevelChange = settings.seaLevelChange || 0;
+    if (settings.seaLevelChange != null) {
+      this.seaLevelChange = settings.seaLevelChange;
+    } else if (settings.seaLevel) {
+      this.seaLevelChange = resolveSeaLevelChange(settings.seaLevel);
+    } else {
+      this.seaLevelChange = 0;
+    }
     this.seaLevelMin = settings.seaLevelMin != null ? settings.seaLevelMin : 0;
     this.seaLevelMax = settings.seaLevelMax != null ? settings.seaLevelMax : 100;
 
-    // Hills configuration (from Civ4 climate XML)
+    // Hills configuration (from Civ4 climate XML: iHillRange)
     // Two bands: centered at 25% and 75% percentile
+    // Default 5 matches CLIMATE_TEMPERATE XML value
     this.hillGroupOneBase = 25;
-    this.hillGroupOneRange = settings.hillGroupOneRange || 9;
+    this.hillGroupOneRange = settings.hillGroupOneRange ?? (climateConfig ? climateConfig.iHillRange : 5);
     this.hillGroupTwoBase = 75;
-    this.hillGroupTwoRange = settings.hillGroupTwoRange || 9;
+    this.hillGroupTwoRange = settings.hillGroupTwoRange ?? (climateConfig ? climateConfig.iHillRange : 5);
 
-    // Peaks percentage
-    this.peakPercent = settings.peakPercent || 4;
+    // Peaks percentage (from Civ4 climate XML: iPeakPercent)
+    // Default 25 matches CLIMATE_TEMPERATE XML value
+    this.peakPercent = settings.peakPercent ?? (climateConfig ? climateConfig.iPeakPercent : 25);
 
     // Shift configuration
     this.stripRadius = settings.stripRadius || 15;

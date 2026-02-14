@@ -5,16 +5,16 @@
  * polar attenuation, and water_percent=75. No custom options, no grid
  * size override, no generator overrides.
  *
- * Only overrides: generatePlotTypes (center rift fractal).
- * All other hooks use orchestrator defaults.
+ * Python original:
+ *   fractal_world = FractalWorld()
+ *   fractal_world.initFractal(polar = True)
+ *   return fractal_world.generatePlotTypes(water_percent=75)
+ *
+ * Only overrides: generatePlotTypes (polar + water_percent=75).
+ * All other hooks (terrain, features, etc.) use orchestrator defaults.
  */
 
 import { FractalWorld } from '../FractalWorld.js';
-import { TerrainGenerator } from '../TerrainGenerator.js';
-import {
-  resolveSeaLevelChange,
-  resolveClimateSettings
-} from './_helpers.js';
 
 export default {
   id: 'continents',
@@ -34,35 +34,8 @@ export default {
   minStartingDistanceModifier() { return 0; },
 
   generatePlotTypes(W, H, settings, rng) {
-    const climateConfig = resolveClimateSettings(settings.climate);
-    const seaLevelChange = resolveSeaLevelChange(settings.seaLevel);
-
-    const fw = new FractalWorld(W, H, {
-      seaLevelChange,
-      hillGroupOneRange: climateConfig.hillRange,
-      hillGroupTwoRange: climateConfig.hillRange,
-      peakPercent: climateConfig.peakPercent,
-      wrapX: true,
-      wrapY: false
-    });
-
-    fw.initFractal(rng, {
-      continent_grain: 2,
-      rift_grain: 2,
-      has_center_rift: true,
-      invert_heights: false,
-      polar: true
-    });
-
-    const plotTypes = fw.generatePlotTypes(rng, {
-      water_percent: 75,
-      grain_amount: 3,
-      shift_plot_types: true
-    });
-
-    // Add coast tiles
-    TerrainGenerator.addCoastTiles(plotTypes, W, H, true, false);
-
-    return plotTypes;
+    const fw = new FractalWorld(W, H, settings);
+    fw.initFractal(rng, { polar: true });
+    return fw.generatePlotTypes(rng, { water_percent: 75 });
   }
 };

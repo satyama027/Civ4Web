@@ -225,8 +225,8 @@ export class TerrainGenerator {
    * @returns {string} Terrain type from TERRAIN enum
    */
   generateTerrainAtPlot(x, y, plotType, existingTerrain) {
-    // 1. Water tiles: return existing terrain (matches Civ4)
-    if (plotType === PLOT.OCEAN || plotType === PLOT.COAST) {
+    // 1. Water tiles: return existing terrain (ocean or coast, already set)
+    if (plotType === PLOT.OCEAN) {
       return existingTerrain;
     }
 
@@ -283,12 +283,31 @@ export class TerrainGenerator {
     this._iPlainsBottom = this.plainsFrac.getHeightFromPercent(this.iPlainsBottomPercent);
     this._iPlainsTop = this.plainsFrac.getHeightFromPercent(100);
 
-    // Pre-populate water terrain, then assign land terrain per-tile
+    // Pre-populate water terrain: ocean tiles adjacent to land → coast, else ocean.
+    // This mirrors Civ4's C++ engine which determines coast at the terrain layer.
+    const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
     const terrain = new Array(W * H);
     for (let i = 0; i < W * H; i++) {
-      if (plotTypes[i] === PLOT.OCEAN) terrain[i] = TERRAIN.OCEAN;
-      else if (plotTypes[i] === PLOT.COAST) terrain[i] = TERRAIN.COAST;
-      else terrain[i] = null;
+      if (plotTypes[i] === PLOT.OCEAN) {
+        const x = i % W;
+        const y = Math.floor(i / W);
+        let adjacentLand = false;
+        for (const [dx, dy] of dirs) {
+          let nx = x + dx, ny = y + dy;
+          if (this.wrapX) nx = ((nx % W) + W) % W;
+          else if (nx < 0 || nx >= W) continue;
+          if (this.wrapY) ny = ((ny % H) + H) % H;
+          else if (ny < 0 || ny >= H) continue;
+          const nPlot = plotTypes[ny * W + nx];
+          if (nPlot === PLOT.LAND || nPlot === PLOT.HILLS || nPlot === PLOT.PEAK) {
+            adjacentLand = true;
+            break;
+          }
+        }
+        terrain[i] = adjacentLand ? TERRAIN.COAST : TERRAIN.OCEAN;
+      } else {
+        terrain[i] = null;
+      }
     }
 
     // Assign terrain to each tile
@@ -300,65 +319,6 @@ export class TerrainGenerator {
     }
 
     return terrain;
-  }
-
-  // ==========================================================================
-  // COAST TILES
-  // ==========================================================================
-
-  /**
-   * Convert ocean tiles adjacent to land into coast tiles.
-   *
-   * In Civ4, this is called as part of the terrain generation pipeline.
-   * Ocean tiles with at least one cardinal neighbor that is land/hills/peak
-   * become coast.
-   *
-   * Mutates the plotTypes array in-place (matching Civ4 behavior).
-   *
-   * @param {number[]} plotTypes - 1D array of PLOT enum values (mutated in-place)
-   * @param {number} width - Map width
-   * @param {number} height - Map height
-   * @param {boolean} [wrapX=true] - Whether map wraps horizontally
-   * @param {boolean} [wrapY=false] - Whether map wraps vertically
-   */
-  static addCoastTiles(plotTypes, width, height, wrapX = true, wrapY = false) {
-    // Cardinal direction offsets: N, S, E, W
-    const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (plotTypes[y * width + x] !== PLOT.OCEAN) continue;
-
-        let adjacentLand = false;
-        for (const [dx, dy] of dirs) {
-          let nx = x + dx;
-          let ny = y + dy;
-
-          // Handle wrapping
-          if (wrapX) {
-            nx = ((nx % width) + width) % width;
-          } else if (nx < 0 || nx >= width) {
-            continue;
-          }
-
-          if (wrapY) {
-            ny = ((ny % height) + height) % height;
-          } else if (ny < 0 || ny >= height) {
-            continue;
-          }
-
-          const neighborPlot = plotTypes[ny * width + nx];
-          if (neighborPlot === PLOT.LAND || neighborPlot === PLOT.HILLS || neighborPlot === PLOT.PEAK) {
-            adjacentLand = true;
-            break;
-          }
-        }
-
-        if (adjacentLand) {
-          plotTypes[y * width + x] = PLOT.COAST;
-        }
-      }
-    }
   }
 
   // ==========================================================================

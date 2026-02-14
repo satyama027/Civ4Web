@@ -99,44 +99,39 @@ function generateHeightmap(width, height, rng) {
 
 /**
  * Default generatePlotTypes: FractalWorld with standard Continents-style settings.
+ * Mirrors Python: FractalWorld(); initFractal(polar=True); generatePlotTypes(water_percent=75)
  */
 function defaultGeneratePlotTypes(W, H, settings, rng, wrapX, wrapY) {
-  const climateConfig = resolveClimateSettings(settings.climate);
-  const seaLevelChange = resolveSeaLevelChange(settings.seaLevel);
-
   const fw = new FractalWorld(W, H, {
-    seaLevelChange,
-    hillGroupOneRange: climateConfig.hillRange,
-    hillGroupTwoRange: climateConfig.hillRange,
-    peakPercent: climateConfig.peakPercent,
+    climate: settings.climate,
+    seaLevel: settings.seaLevel,
     wrapX, wrapY
   });
 
-  fw.initFractal(rng, {
-    continent_grain: 2,
-    rift_grain: 2,
-    has_center_rift: true,
-    invert_heights: false,
-    polar: true
-  });
+  fw.initFractal(rng, { polar: true });
 
-  const plotTypes = fw.generatePlotTypes(rng, {
-    water_percent: 75,
-    grain_amount: 3,
-    shift_plot_types: true
-  });
-
-  // Add coast tiles (between ocean and land)
-  TerrainGenerator.addCoastTiles(plotTypes, W, H, wrapX, wrapY);
-
-  return plotTypes;
+  return fw.generatePlotTypes(rng, { water_percent: 75 });
 }
 
 /**
- * Default generateTerrain: standard TerrainGenerator.
+ * Default generateTerrain: standard TerrainGenerator with climate adjustments.
+ * Mirrors Python TerrainGenerator.__init__() which applies climate-dependent
+ * latitude changes from CIV4ClimateInfo.xml.
  */
 function defaultGenerateTerrain(W, H, plotTypes, settings, rng, wrapX, wrapY) {
-  const tg = new TerrainGenerator(W, H, { wrapX, wrapY, mapSize: settings.mapSize });
+  const climateConfig = resolveClimateSettings(settings.climate);
+  const clamp01 = v => Math.min(1.0, Math.max(0.0, v));
+
+  const tg = new TerrainGenerator(W, H, {
+    wrapX, wrapY,
+    mapSize: settings.mapSize,
+    iDesertPercent:        Math.min(100, Math.max(0, 32 + climateConfig.iDesertPercentChange)),
+    fSnowLatitude:         clamp01(0.7 + climateConfig.fSnowLatitudeChange),
+    fTundraLatitude:       clamp01(0.6 + climateConfig.fTundraLatitudeChange),
+    fGrassLatitude:        clamp01(0.1 + climateConfig.fGrassLatitudeChange),
+    fDesertBottomLatitude: clamp01(0.2 + climateConfig.fDesertBottomLatitudeChange),
+    fDesertTopLatitude:    clamp01(0.5 + climateConfig.fDesertTopLatitudeChange)
+  });
   return tg.generateTerrain(rng, plotTypes);
 }
 
@@ -166,8 +161,8 @@ function defaultAddLakes(W, H, plotTypes, wrapX, wrapY) {
 function defaultAddFeatures(W, H, plotTypes, terrain, rivers, settings, rng, wrapX, wrapY) {
   const climateConfig = resolveClimateSettings(settings.climate);
   const fg = new FeatureGenerator(W, H, {
-    jungleLatitude: climateConfig.jungleLatitude,
-    randIceLatitude: climateConfig.randIceLatitude,
+    jungleLatitude: climateConfig.iJungleLatitude,
+    randIceLatitude: climateConfig.fRandIceLatitude,
     mapSize: settings.mapSize,
     wrapX, wrapY
   });
@@ -304,8 +299,9 @@ function buildFinalMapData(W, H, plots2D, terrain2D, features2D, resources2D,
         resource: resources2D[y][wx],
         river,
 
-        isWater: plot <= PLOT.COAST,
+        isWater: plot === PLOT.OCEAN,
         isLand: plot >= PLOT.LAND,
+        isCoast: terrain2D[y][wx] === TERRAIN.COAST,
         isHills: plot === PLOT.HILLS,
         isPeak: plot === PLOT.PEAK,
         hasRiver: tileHasRiver(rivers2D, wx, y, W, H),
@@ -661,8 +657,9 @@ function _runLegacyPipeline(script, fullSettings, rng, seed) {
         feature: this.features[y][wx],
         resource: this.resources[y][wx],
         river,
-        isWater: plot <= PLOT.COAST,
+        isWater: plot === PLOT.OCEAN,
         isLand: plot >= PLOT.LAND,
+        isCoast: this.terrain[y][wx] === TERRAIN.COAST,
         isHills: plot === PLOT.HILLS,
         isPeak: plot === PLOT.PEAK,
         hasRiver: tileHasRiver(this.rivers, wx, y, W, H),
@@ -768,7 +765,7 @@ export function getMapStats(mapData) {
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (plots[y][x] <= PLOT.COAST) stats.water++;
+      if (plots[y][x] === PLOT.OCEAN) stats.water++;
       else stats.land++;
       if (plots[y][x] === PLOT.HILLS) stats.hills++;
       if (plots[y][x] === PLOT.PEAK) stats.peaks++;
