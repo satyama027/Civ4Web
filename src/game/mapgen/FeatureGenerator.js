@@ -93,6 +93,13 @@ export class FeatureGenerator {
     // Jungle latitude falloff (from Civ4 climate XML: getJungleLatitude())
     this.jungleLatitude = settings.jungleLatitude || 0.15;
 
+    // Ice latitude parameter (from CIV4ClimateInfo.xml fRandIceLatitude)
+    // NOT random — this is a fixed climate parameter despite the name
+    this.randIceLatitude = settings.randIceLatitude ?? 0.30;
+
+    // Map size key for exact XML grain lookup
+    this.mapSize = settings.mapSize || 'standard';
+
     // Fractal configuration
     const fracXExp = settings.fracXExp || 7;
     const fracYExp = settings.fracYExp || 6;
@@ -109,7 +116,7 @@ export class FeatureGenerator {
     this._iJungleTop = 0;
     this._iJungleBottom = 0;
     this._iForestLevel = 0;
-    this._randIceLatitude = 0;
+    this._randIceLatitude = 0; // set from this.randIceLatitude in generateFeatures
   }
 
   // ==========================================================================
@@ -118,14 +125,15 @@ export class FeatureGenerator {
 
   /**
    * Get grain adjustment based on map size.
-   * Civ4 adjusts feature fractal grain by world size for appropriate feature scale.
-   * @returns {number} Grain adjustment (0, 1, or 2)
+   * Exact values from CIV4WorldInfo.xml FeatureGrainChange.
+   * @returns {number} Grain adjustment
    */
   getWorldSizeGrainAdjust() {
-    const totalPlots = this.iNumPlotsX * this.iNumPlotsY;
-    if (totalPlots <= 2048) return 0;       // Duel/Tiny (up to ~52x40)
-    if (totalPlots <= 4800) return 1;       // Small/Standard
-    return 2;                                // Large/Huge
+    const grainBySize = {
+      duel: 0, tiny: 0, small: 0,
+      standard: 1, large: 1, huge: 1
+    };
+    return grainBySize[this.mapSize] ?? 1;
   }
 
   /**
@@ -213,9 +221,9 @@ export class FeatureGenerator {
     // Civ4: iForestLevel = getHeightFromPercent(iForestPercent) → top 40% gets forest
     this._iForestLevel = this.forestFrac.getHeightFromPercent(this.iForestPercent);
 
-    // 3. Random ice latitude (generated once per map)
-    // Civ4: map.getRandNum(100, "Feature Generator") / 500.0 → range [0, 0.198]
-    this._randIceLatitude = rng.nextInt(0, 99) / 500.0;
+    // 3. Use climate ice latitude parameter (from CIV4ClimateInfo.xml fRandIceLatitude)
+    // This is a fixed climate parameter, NOT randomly generated
+    this._randIceLatitude = this.randIceLatitude;
 
     // 4. Allocate feature array
     const features = new Array(W * H).fill(FEATURE.NONE);
@@ -251,17 +259,57 @@ export class FeatureGenerator {
   }
 
   // ==========================================================================
+  // FEATURE ELIGIBILITY (canHaveFeature equivalent)
+  // ==========================================================================
+
+  /**
+   * Check if a tile can have a given feature type.
+   * Centralizes the Civ4 C++ canHaveFeature() checks from XML feature rules.
+   *
+   * @param {string} featureType - Feature type from FEATURE enum
+   * @param {number} plotType - Plot type from PLOT enum
+   * @param {string} terrainType - Terrain type from TERRAIN enum
+   * @returns {boolean}
+   */
+  canHaveFeature(featureType, plotType, terrainType) {
+    switch (featureType) {
+      case FEATURE.ICE:
+        return (plotType === PLOT.OCEAN || plotType === PLOT.COAST);
+
+      case FEATURE.JUNGLE:
+        if (plotType !== PLOT.LAND && plotType !== PLOT.HILLS) return false;
+        return (terrainType === TERRAIN.GRASSLAND);
+
+      case FEATURE.FOREST:
+        if (plotType !== PLOT.LAND && plotType !== PLOT.HILLS) return false;
+        return (terrainType === TERRAIN.GRASSLAND ||
+                terrainType === TERRAIN.PLAINS ||
+                terrainType === TERRAIN.TUNDRA ||
+                terrainType === TERRAIN.SNOW);
+
+      case FEATURE.OASIS:
+        return (plotType === PLOT.LAND && terrainType === TERRAIN.DESERT);
+
+      case FEATURE.FLOODPLAINS:
+        return (plotType === PLOT.LAND && terrainType === TERRAIN.DESERT);
+
+      default:
+        return false;
+    }
+  }
+
+  // ==========================================================================
   // PER-PLOT FEATURE DISPATCH
   // ==========================================================================
 
   /**
    * Place features at a single tile. Exact Civ4 order:
-   * 1. Generic XML features (skipped — no custom XML features in web version)
+   * 1. Generic XML features (appearance probability from CIV4FeatureInfo.xml)
    * 2. Ice
    * 3. Jungle
    * 4. Forest
    *
-   * Once any feature is placed, the function returns immediately.
+   * Python checks getFeatureType() == NO_FEATURE before each pass.
    *
    * @param {number} x - Tile X coordinate
    * @param {number} y - Tile Y coordinate
@@ -275,19 +323,51 @@ export class FeatureGenerator {
     const idx = y * W + x;
     const lat = this.getLatitudeAtPlot(x, y);
 
-    // Step 1: Generic features (XML appearance probability)
-    // Skipped — no custom XML features in web version
+    // Step 1: Generic XML features (appearance probability)
+    this.addGenericFeaturesAtPlot(x, y, plotTypes, terrain, features, rng);
 
-    // Step 2: Ice
-    this.addIceAtPlot(x, y, lat, plotTypes, features, rng);
-    if (features[idx] !== FEATURE.NONE) return;
+    // Step 2: Ice (only if no feature yet — matches Python pattern)
+    if (features[idx] === FEATURE.NONE) {
+      this.addIceAtPlot(x, y, lat, plotTypes, features, rng);
+    }
 
-    // Step 3: Jungle
-    this.addJunglesAtPlot(x, y, lat, plotTypes, terrain, features);
-    if (features[idx] !== FEATURE.NONE) return;
+    // Step 3: Jungle (only if no feature yet)
+    if (features[idx] === FEATURE.NONE) {
+      this.addJunglesAtPlot(x, y, lat, plotTypes, terrain, features);
+    }
 
-    // Step 4: Forest
-    this.addForestsAtPlot(x, y, lat, plotTypes, terrain, features);
+    // Step 4: Forest (only if no feature yet)
+    if (features[idx] === FEATURE.NONE) {
+      this.addForestsAtPlot(x, y, lat, plotTypes, terrain, features);
+    }
+  }
+
+  // ==========================================================================
+  // GENERIC XML FEATURES
+  // ==========================================================================
+
+  /**
+   * Generic XML feature pass from Python's addFeaturesAtPlot.
+   * Iterates all feature types and places by XML iAppearanceProbability.
+   * In standard BTS XML, only FEATURE_FOREST has iAppearanceProbability=5000 (50%).
+   *
+   * @param {number} x - Tile X coordinate
+   * @param {number} y - Tile Y coordinate
+   * @param {number[]} plotTypes - 1D plot type array
+   * @param {string[]} terrain - 1D terrain array
+   * @param {string[]} features - 1D feature array (mutated in-place)
+   * @param {import('./utils.js').SeededRandom} rng - Seeded random number generator
+   */
+  addGenericFeaturesAtPlot(x, y, plotTypes, terrain, features, rng) {
+    const W = this.iNumPlotsX;
+    const idx = y * W + x;
+
+    // FEATURE_FOREST: iAppearanceProbability = 5000 (out of 10000)
+    if (this.canHaveFeature(FEATURE.FOREST, plotTypes[idx], terrain[idx])) {
+      if (rng.nextInt(0, 9999) < 5000) {
+        features[idx] = FEATURE.FOREST;
+      }
+    }
   }
 
   // ==========================================================================
@@ -313,10 +393,9 @@ export class FeatureGenerator {
     const W = this.iNumPlotsX;
     const H = this.iNumPlotsY;
     const idx = y * W + x;
-    const plot = plotTypes[idx];
 
-    // Ice only on water (ocean or coast)
-    if (plot !== PLOT.OCEAN && plot !== PLOT.COAST) return;
+    // canHaveFeature check (ice only on water)
+    if (!this.canHaveFeature(FEATURE.ICE, plotTypes[idx], null)) return;
 
     // Civ4: Edge ice only for specific wrap configurations
     if (this.wrapX && !this.wrapY) {
@@ -368,14 +447,9 @@ export class FeatureGenerator {
   addJunglesAtPlot(x, y, _lat, plotTypes, terrain, features) {
     const W = this.iNumPlotsX;
     const idx = y * W + x;
-    const plot = plotTypes[idx];
-    const terr = terrain[idx];
 
-    // Jungle only on land or hills (not water, not peaks)
-    if (plot !== PLOT.LAND && plot !== PLOT.HILLS) return;
-
-    // Jungle only on grassland
-    if (terr !== TERRAIN.GRASSLAND) return;
+    // canHaveFeature check (jungle: land/hills + grassland)
+    if (!this.canHaveFeature(FEATURE.JUNGLE, plotTypes[idx], terrain[idx])) return;
 
     // Latitude-adjusted bottom threshold
     // At equator (lat=0): adjustedBottom = iJungleBottom → maximum jungle range
@@ -410,17 +484,9 @@ export class FeatureGenerator {
   addForestsAtPlot(x, y, _lat, plotTypes, terrain, features) {
     const W = this.iNumPlotsX;
     const idx = y * W + x;
-    const plot = plotTypes[idx];
-    const terr = terrain[idx];
 
-    // Forest only on land or hills (not water, not peaks)
-    if (plot !== PLOT.LAND && plot !== PLOT.HILLS) return;
-
-    // No forest on desert, ocean, or coast terrain
-    if (terr === TERRAIN.DESERT || terr === TERRAIN.OCEAN || terr === TERRAIN.COAST) return;
-
-    // No forest if already has a feature (ice or jungle from earlier passes)
-    if (features[idx] !== FEATURE.NONE) return;
+    // canHaveFeature check (forest: land/hills + grass/plains/tundra/snow)
+    if (!this.canHaveFeature(FEATURE.FOREST, plotTypes[idx], terrain[idx])) return;
 
     // Simple threshold: top iForestPercent (60%) of the fractal
     // iForestLevel = getHeightFromPercent(100 - 60) = 40th percentile
@@ -454,9 +520,8 @@ export class FeatureGenerator {
     const H = this.iNumPlotsY;
     const idx = y * W + x;
 
-    // Oasis only on flat desert land
-    if (plotTypes[idx] !== PLOT.LAND) return;
-    if (terrain[idx] !== TERRAIN.DESERT) return;
+    // canHaveFeature check (oasis: flat land + desert)
+    if (!this.canHaveFeature(FEATURE.OASIS, plotTypes[idx], terrain[idx])) return;
 
     // Check no adjacent water or oasis in all 8 directions
     for (let dy = -1; dy <= 1; dy++) {
@@ -510,9 +575,8 @@ export class FeatureGenerator {
     const W = this.iNumPlotsX;
     const idx = y * W + x;
 
-    // Floodplains only on flat desert land
-    if (plotTypes[idx] !== PLOT.LAND) return;
-    if (terrain[idx] !== TERRAIN.DESERT) return;
+    // canHaveFeature check (floodplains: flat land + desert)
+    if (!this.canHaveFeature(FEATURE.FLOODPLAINS, plotTypes[idx], terrain[idx])) return;
 
     // Must have river on an adjacent edge
     if (!this._tileHasRiver(rivers, x, y)) return;

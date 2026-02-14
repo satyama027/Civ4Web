@@ -136,7 +136,7 @@ function defaultGeneratePlotTypes(W, H, settings, rng, wrapX, wrapY) {
  * Default generateTerrain: standard TerrainGenerator.
  */
 function defaultGenerateTerrain(W, H, plotTypes, settings, rng, wrapX, wrapY) {
-  const tg = new TerrainGenerator(W, H, { wrapX, wrapY });
+  const tg = new TerrainGenerator(W, H, { wrapX, wrapY, mapSize: settings.mapSize });
   return tg.generateTerrain(rng, plotTypes);
 }
 
@@ -167,6 +167,8 @@ function defaultAddFeatures(W, H, plotTypes, terrain, rivers, settings, rng, wra
   const climateConfig = resolveClimateSettings(settings.climate);
   const fg = new FeatureGenerator(W, H, {
     jungleLatitude: climateConfig.jungleLatitude,
+    randIceLatitude: climateConfig.randIceLatitude,
+    mapSize: settings.mapSize,
     wrapX, wrapY
   });
   return fg.generateFeatures(rng, plotTypes, terrain, rivers);

@@ -699,7 +699,7 @@ export default {
     TerrainGenerator.addCoastTiles(plotTypes1D, W, H, true, false);
 
     // Terrain (default generator)
-    const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false });
+    const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false, mapSize });
     const terrain1D = tg.generateTerrain(rng, plotTypes1D);
 
     // Cohesion repair
@@ -714,6 +714,8 @@ export default {
     // Features (default generator)
     const fg = new FeatureGenerator(W, H, {
       jungleLatitude: climateConfig.jungleLatitude,
+      randIceLatitude: climateConfig.randIceLatitude,
+      mapSize,
       wrapX: true, wrapY: false
     });
     const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);

@@ -295,7 +295,7 @@ export default {
     removeCoastalPeaks(plotTypes1D, W, H, true);
 
     // 6. Generate terrain
-    const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false });
+    const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false, mapSize });
     const terrain1D = tg.generateTerrain(rng, plotTypes1D);
 
     // 7. Add rivers + lakes
@@ -306,6 +306,8 @@ export default {
     // 8. Add features
     const fg = new FeatureGenerator(W, H, {
       jungleLatitude: climateConfig.jungleLatitude,
+      randIceLatitude: climateConfig.randIceLatitude,
+      mapSize,
       wrapX: true, wrapY: false
     });
     const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);

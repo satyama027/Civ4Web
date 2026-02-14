@@ -63,11 +63,11 @@ export function resolveSeaLevelChange(seaLevel) {
  */
 export function resolveClimateSettings(climate) {
   const configs = {
-    tropical:  { hillRange: 8,  peakPercent: 5,  jungleLatitude: 0.40 },
-    temperate: { hillRange: 9,  peakPercent: 4,  jungleLatitude: 0.15 },
-    rocky:     { hillRange: 12, peakPercent: 7,  jungleLatitude: 0.05 },
-    arid:      { hillRange: 7,  peakPercent: 3,  jungleLatitude: 0.00 },
-    cold:      { hillRange: 9,  peakPercent: 4,  jungleLatitude: 0.00 }
+    tropical:  { hillRange: 8,  peakPercent: 5,  jungleLatitude: 0.40, randIceLatitude: 0.30 },
+    temperate: { hillRange: 9,  peakPercent: 4,  jungleLatitude: 0.15, randIceLatitude: 0.30 },
+    rocky:     { hillRange: 12, peakPercent: 7,  jungleLatitude: 0.05, randIceLatitude: 0.30 },
+    arid:      { hillRange: 7,  peakPercent: 3,  jungleLatitude: 0.00, randIceLatitude: 0.30 },
+    cold:      { hillRange: 9,  peakPercent: 4,  jungleLatitude: 0.00, randIceLatitude: 0.60 }
   };
   return configs[climate] || configs.temperate;
 }
@@ -78,13 +78,14 @@ export function resolveClimateSettings(climate) {
  * @returns {number}
  */
 export function getWorldSizeGrainAdjust(worldSize) {
+  // Exact values from CIV4WorldInfo.xml TerrainGrainChange / FeatureGrainChange
   switch (worldSize) {
     case 'duel':
     case 'tiny':     return 0;
     case 'small':    return 0;
     case 'standard': return 1;
     case 'large':    return 1;
-    case 'huge':     return 2;
+    case 'huge':     return 1;
     default:         return 0;
   }
 }

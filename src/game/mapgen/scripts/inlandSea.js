@@ -366,7 +366,8 @@ export default {
     // Custom terrain with latitude compression (no snow/ice)
     const tg = new ISTerrainGenerator(W, H, {
       wrapX: false, wrapY: false,
-      topLatitude: 60, bottomLatitude: -60
+      topLatitude: 60, bottomLatitude: -60,
+      mapSize
     });
     const terrain1D = tg.generateTerrain(rng, plotTypes1D);
 
@@ -380,8 +381,10 @@ export default {
     // Custom features with latitude compression
     const fg = new ISFeatureGenerator(W, H, {
       jungleLatitude: climateConfig.jungleLatitude,
+      randIceLatitude: climateConfig.randIceLatitude,
       wrapX: false, wrapY: false,
-      topLatitude: 60, bottomLatitude: -60
+      topLatitude: 60, bottomLatitude: -60,
+      mapSize
     });
     const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
 

@@ -352,24 +352,16 @@ export class HintedWorld extends FractalWorld {
     let startX = x;
     let startY = y;
 
-    if (startX === -1 || startY === -1) {
-      // Random starting position
-      startX = rng.nextInt(0, this.w - 1);
-      startY = rng.nextInt(0, this.h - 1);
-    }
+    if (startX === -1) startX = rng.nextInt(0, this.w - 1);
+    if (startY === -1) startY = rng.nextInt(0, this.h - 1);
 
-    // Create temporary continent for isValid checks
-    const id = this._nextContinentId++;
-    const continent = new Continent(id, startX, startY, numBlocks, maxRadius);
-
-    // Find valid position near requested location
-    const validPos = this.findValid(startX, startY, maxDist, continent, rng);
+    // Python: self.findValid(x, y, maxDist) — no continent passed
+    const validPos = this.findValid(startX, startY, maxDist, null, rng);
     if (!validPos) return null;
 
-    // Update continent center to actual position
-    continent.centerx = validPos.x;
-    continent.centery = validPos.y;
-    continent.blocks = [[validPos.x, validPos.y]];
+    // Create continent AFTER finding valid position (matches Python)
+    const id = this._nextContinentId++;
+    const continent = new Continent(id, validPos.x, validPos.y, numBlocks, maxRadius);
 
     // Set block value: land center
     const centerValue = LAND_THRESHOLD + rng.nextInt(0, 63); // 192-255
@@ -585,29 +577,33 @@ export class HintedWorld extends FractalWorld {
       shift_plot_types = false
     } = params;
 
-    // 1. Shift hints to center land on the block grid
-    this.shiftHintsToMap();
-
-    // 2. Fill null entries with low water values
+    // 1. Fill null entries with random water values BEFORE shifting (matches Python)
     for (let i = 0; i < this.data.length; i++) {
       if (this.data[i] === null) {
         this.data[i] = rng.nextInt(0, 47);
       }
     }
 
+    // 2. __doInitFractal: shift hints, then init fractal
+    this.shiftHintsToMap();
+
     // 3. Compute grain from data size (matching original Civ4 __doInitFractal)
+    // Python does NOT break — takes the LAST matching grain
     const size = this.data.length;
     const minExp = Math.min(this.fracXExp, this.fracYExp);
-    let iGrain = 1; // fallback
+    let iGrain = null;
     for (let i = 0; i < minExp; i++) {
       let gw = 1 << (this.fracXExp - minExp + i);
       let gh = 1 << (this.fracYExp - minExp + i);
       if (!this.wrapX) gw += 1;
       if (!this.wrapY) gh += 1;
       if (size === gw * gh) {
-        iGrain = i;
-        break;
+        iGrain = i; // no break — take last match (matches Python)
       }
+    }
+    if (iGrain === null) {
+      console.warn('HintedWorld: no matching grain found for data size', size);
+      iGrain = 1; // defensive fallback
     }
 
     // 4. Initialize continent fractal with hints
@@ -618,14 +614,15 @@ export class HintedWorld extends FractalWorld {
       iGrain, rng, flags
     );
 
-    // 3. Auto-calculate water percent if -1
+    // 5. Auto-calculate water percent if -1
+    // Python: int(100*numWaterPlots/numPlots) — integer multiplication then integer division
     let effectiveWaterPercent = water_percent;
     if (effectiveWaterPercent === -1) {
       let waterBlocks = 0;
       for (let i = 0; i < this.data.length; i++) {
         if (this.data[i] < LAND_THRESHOLD) waterBlocks++;
       }
-      effectiveWaterPercent = Math.round((waterBlocks / this.data.length) * 100);
+      effectiveWaterPercent = Math.floor((waterBlocks / this.data.length) * 100);
     }
 
     // 4. Delegate to parent for hills/peaks and plot assignment

@@ -1,701 +1,576 @@
-# CvMapGeneratorUtil.py → JS Sync Spec
+# CvMapGeneratorUtil.py → JS Sync Spec (Round 2)
 
-This document specifies every change required to make the JS map generation engine classes match the original Civ4 BTS `CvMapGeneratorUtil.py` exactly.
+This document specifies every remaining change required to make the JS map
+engine classes an exact port of `CvMapGeneratorUtil.py` from Civ4 BTS.
 
 Source of truth: `D:\Games\Civilization IV Complete\Civ4\Assets\Python\CvMapGeneratorUtil.py`
 
----
-
-## 1. FractalWorld.js
-
-### 1.1 Fix `calcWeights()` — Symmetric weight curve
-
-**File:** `src/game/mapgen/FractalWorld.js`
-**Lines:** 296–321
-
-**Problem:** JS computes `distFromCenter = Math.abs(i - stripRadius)` which produces an asymmetric curve with a single center at `i = stripRadius`. Python computes `distFromCenter = stripRadius - distFromEdge` which produces a symmetric curve with two center positions at `i = stripRadius - 1` and `i = stripRadius`.
-
-**Change:** Replace the `distFromCenter` calculation:
-
-```javascript
-// BEFORE (wrong):
-const distFromCenter = Math.abs(i - stripRadius);
-
-// AFTER (matches Python):
-const distFromCenter = stripRadius - distFromEdge;
-```
-
-**Verification:** With `stripRadius=3`, weights should be `[1, 6, 18, 18, 6, 1]` (symmetric), not `[1, 2, 9, 18, 6, 1]`.
-
-> This same fix must also be applied in **MultilayeredFractal.js** `calcWeights()` and **HintedWorld.js** `calcWeights()` (inherited from FractalWorld).
+Previous round of fixes already addressed: `calcWeights` symmetry,
+`findBestSplitX/Y` PLOT_LAND counting, `bestHintsSplitX/Y` simple counting,
+`shiftPlotTypesBy` guard + wrap, `isValid` raw distance, `findValid`
+Chebyshev shells, `expandContinentBy` greedy selection, `buildAllContinents`
+done flag, `shiftRegionPlots` clamping, jungle centered band, forest
+threshold direction, ice edge conditions + single roll, latitude H/2
+normalization, variation fractal grain.
 
 ---
 
-### 1.2 Fix `findBestSplitX()` — Count only PLOT_LAND
+## 1. HintedWorld.js — `addContinent`: Do NOT pass continent to `findValid`
 
-**File:** `src/game/mapgen/FractalWorld.js`
-**Lines:** 346–354
-
-**Problem:** JS counts all non-OCEAN tiles (`!== PLOT.OCEAN`). Python counts only `PLOT_LAND`.
-
-**Change:**
-
-```javascript
-// BEFORE (wrong):
-if (this.plotTypes[i] !== PLOT.OCEAN) {
-  landCount++;
-}
-
-// AFTER (matches Python):
-if (this.plotTypes[i] === PLOT.LAND) {
-  landCount++;
-}
+**Python (line 320):**
+```python
+foundx, foundy = self.findValid(x, y, maxDist)
 ```
+`findValid` is called without a continent reference. Inside `findValid`,
+`isValid(tryx, tryy)` is called without `cont`, meaning:
+- No `maxradius` check during initial placement search.
+- ANY neighboring block ≥ 192 causes rejection (the `not cont` path at
+  line 447).
 
-Also update the `bFoundLand` logic to match Python exactly — Python sets `bFoundLand = True` inside the same `if` block, and adds +30 only if `bFoundLand` is true:
-
+**Current JS (line 366):**
 ```javascript
-let landScore = 0;
-let bFoundLand = false;
-for (let y = 0; y < this.iNumPlotsY; y++) {
-  const i = y * this.iNumPlotsX + x;
-  if (this.plotTypes[i] === PLOT.LAND) {
-    landScore++;
-    bFoundLand = true;
-  }
-}
-if (bFoundLand) {
-  landScore += 30;
-}
+const continent = new Continent(id, startX, startY, numBlocks, maxRadius);
+const validPos = this.findValid(startX, startY, maxDist, continent, rng);
 ```
+JS creates the Continent BEFORE `findValid` and passes it in. This adds
+`maxradius` checking and allows own-block neighbors during initial placement.
 
-This variable naming (`landScore` + `bFoundLand`) matches the Python exactly.
-
----
-
-### 1.3 Fix `findBestSplitY()` — Count only PLOT_LAND + match Python guard
-
-**File:** `src/game/mapgen/FractalWorld.js`
-**Lines:** 393–440
-
-Same PLOT_LAND fix as 1.2.
-
-Additionally, match Python's guard condition which checks against `iNumPlotsX` (not `iNumPlotsY`). This is a quirk/bug in the original Civ4 code but we must reproduce it:
+**Required change:**
+- Call `this.findValid(startX, startY, maxDist, null, rng)` — pass `null`
+  for continent.
+- Create the Continent object AFTER `findValid` returns a valid position.
 
 ```javascript
-// BEFORE (diverges from Python):
-if (stripSize > this.iNumPlotsY) return 0;
+addContinent(rng, numBlocks, x = -1, y = -1, maxDist = -1, maxRadius = -1) {
+    let startX = x, startY = y;
+    if (startX === -1) startX = rng.nextInt(0, this.w - 1);
+    if (startY === -1) startY = rng.nextInt(0, this.h - 1);
 
-// AFTER (matches Python — uses X dimension):
-if (stripSize > this.iNumPlotsX) return 0;
-```
+    // Python: self.findValid(x, y, maxDist) — no continent passed
+    const validPos = this.findValid(startX, startY, maxDist, null, rng);
+    if (!validPos) return null;
 
----
+    // Create continent AFTER finding valid position
+    const id = this._nextContinentId++;
+    const continent = new Continent(id, validPos.x, validPos.y, numBlocks, maxRadius);
 
-### 1.4 Fix `shiftPlotTypesBy()` — Positive-only guard + always-wrap Y
+    const centerValue = LAND_THRESHOLD + rng.nextInt(0, 63);
+    this.setValue(validPos.x, validPos.y, centerValue);
+    this._blockOwner.set(`${validPos.x},${validPos.y}`, continent.id);
 
-**File:** `src/game/mapgen/FractalWorld.js`
-**Lines:** 448–473
-
-**Problem 1:** Python only executes when `xshift > 0 or yshift > 0`. JS executes for any non-zero value.
-
-**Problem 2:** Python always wraps both X and Y with simple modulo. JS conditionally wraps Y and fills out-of-bounds with OCEAN.
-
-**Change:** Replace the entire method body:
-
-```javascript
-shiftPlotTypesBy(xshift, yshift) {
-  if (xshift <= 0 && yshift <= 0) return;
-
-  const buf = [...this.plotTypes];
-
-  for (let destY = 0; destY < this.iNumPlotsY; destY++) {
-    for (let destX = 0; destX < this.iNumPlotsX; destX++) {
-      const destI = this.iNumPlotsX * destY + destX;
-      let sourceX = (destX + xshift) % this.iNumPlotsX;
-      let sourceY = (destY + yshift) % this.iNumPlotsY;
-      // Python uses simple modulo which is always non-negative for positive divisors
-      // JS modulo can be negative, so normalize:
-      sourceX = ((sourceX % this.iNumPlotsX) + this.iNumPlotsX) % this.iNumPlotsX;
-      sourceY = ((sourceY % this.iNumPlotsY) + this.iNumPlotsY) % this.iNumPlotsY;
-      const sourceI = this.iNumPlotsX * sourceY + sourceX;
-      this.plotTypes[destI] = buf[sourceI];
-    }
-  }
+    this.continents.push(continent);
+    return continent;
 }
 ```
 
 ---
 
-## 2. HintedWorld.js
+## 2. HintedWorld.js — `generatePlotTypes`: Fix order of operations
 
-### 2.1 Replace `bestHintsSplitX()` — Simple neighbor counting
+**Python (lines 481–495):**
+```python
+def generatePlotTypes(self, water_percent=-1, shift_plot_types=False):
+    # Step 1: Fill null entries with random water values
+    for i in range(len(self.data)):
+        if self.data[i] == None:
+            self.data[i] = self.mapRand.get(48, "Generate Plot Types PYTHON")
 
-**File:** `src/game/mapgen/HintedWorld.js`
-**Lines:** 493–528
+    # Step 2: __doInitFractal → shiftHintsToMap() then fracInitHints()
+    self.__doInitFractal()
 
-**Problem:** JS uses the FractalWorld-style weighted strip algorithm. Python uses a simple two-value counting approach per column.
+    # Step 3: Auto-calculate water percent
+    if (water_percent == -1):
+        numPlots = len(self.data)
+        numWaterPlots = 0
+        for val in self.data:
+            if val < 192:
+                numWaterPlots += 1
+        water_percent = int(100*numWaterPlots/numPlots)
 
-**Change:** Replace the method body entirely to match Python:
-
-```javascript
-bestHintsSplitX() {
-  const scores = new Array(this.w).fill(0);
-  for (let x = 0; x < this.w; x++) {
-    for (let y = 0; y < this.h; y++) {
-      const val = this.getValue(x, y);
-      if (val !== null && val >= 192) scores[x] += 1;
-      const leftVal = this.getValue(x - 1, y);
-      if (leftVal !== null && leftVal >= 192) scores[x] += 1;
-    }
-  }
-  // argmin
-  let bestIdx = 0;
-  let bestScore = scores[0];
-  for (let i = 1; i < this.w; i++) {
-    if (scores[i] < bestScore) {
-      bestScore = scores[i];
-      bestIdx = i;
-    }
-  }
-  return bestIdx;
-}
+    # Step 4: Delegate to parent
+    return FractalWorld.generatePlotTypes(self, water_percent, shift_plot_types)
 ```
 
-No strip weights, no +30 bonus — just a direct count of land blocks at column `x` and column `x-1`.
+Order is: **fill nulls → shift hints → fracInitHints → water% → parent**.
 
----
+**Current JS (lines 581–638):**
+Order is: **shift hints → fill nulls → grain → fracInitHints → water% → parent**.
 
-### 2.2 Replace `bestHintsSplitY()` — Simple neighbor counting
+The shift happens BEFORE null-filling, so `shiftHintsToMap` operates on data
+that still contains `null` entries. In Python, nulls are filled first, so
+the hint-shifting scores operate on fully populated data.
 
-**File:** `src/game/mapgen/HintedWorld.js`
-**Lines:** 537–569
-
-Same approach as 2.1 but for rows. Match Python:
-
-```javascript
-bestHintsSplitY() {
-  const scores = new Array(this.h).fill(0);
-  for (let x = 0; x < this.w; x++) {
-    for (let y = 0; y < this.h; y++) {
-      const val = this.getValue(x, y);
-      if (val !== null && val >= 192) scores[y] += 1;
-      const belowVal = this.getValue(x, y - 1);
-      if (belowVal !== null && belowVal >= 192) scores[y] += 1;
-    }
-  }
-  let bestIdx = 0;
-  let bestScore = scores[0];
-  for (let i = 1; i < this.h; i++) {
-    if (scores[i] < bestScore) {
-      bestScore = scores[i];
-      bestIdx = i;
-    }
-  }
-  return bestIdx;
-}
-```
-
-Note: The `shiftHintsToMap()` method that calls these also needs updating — it currently computes a `hintStripRadius` and passes it to these methods, but the Python versions take no arguments. Remove the `stripRadius` parameter from these methods and update `shiftHintsToMap()` accordingly.
-
----
-
-### 2.3 Fix `isValid()` — Remove wrap-aware distance for maxradius
-
-**File:** `src/game/mapgen/HintedWorld.js`
-**Lines:** 256–263
-
-**Problem:** JS accounts for wrapping when computing Manhattan distance to continent center. Python uses raw coordinate differences.
-
-**Change:**
+**Required change:**
+Reorder to match Python — fill nulls first, then shift:
 
 ```javascript
-// BEFORE (wrong — wrap-aware):
-if (continent && continent.maxradius > 0) {
-  let dx = Math.abs(nx - continent.centerx);
-  let dy = Math.abs(ny - continent.centery);
-  if (this.wrapX) dx = Math.min(dx, this.w - dx);
-  if (this.wrapY) dy = Math.min(dy, this.h - dy);
-  if (dx + dy > continent.maxradius) return false;
-}
+generatePlotTypes(rng, params = {}) {
+    const { water_percent = -1, grain_amount = 3, shift_plot_types = false } = params;
 
-// AFTER (matches Python — raw coords):
-if (continent && continent.maxradius > 0) {
-  if (Math.abs(x - continent.centerx) + Math.abs(y - continent.centery) > continent.maxradius) {
-    return false;
-  }
-}
-```
-
-Note: Use the **original** `x, y` parameters (before normalization), matching Python which passes raw `x, y` to the distance check.
-
----
-
-### 2.4 Fix `findValid()` — Use Chebyshev distance shells
-
-**File:** `src/game/mapgen/HintedWorld.js`
-**Lines:** 297–332
-
-**Problem:** JS uses Manhattan distance diamond perimeter. Python uses Chebyshev distance (max of absolute values) and a recursive search from distance 0 upward.
-
-**Change:** Replace with iterative Chebyshev-shell search matching the Python recursive approach:
-
-```javascript
-findValid(x, y, maxDist = -1, continent = null, rng = null) {
-  if (maxDist < 0) {
-    maxDist = Math.max(this.w, this.h);
-  }
-
-  // Search shells from 0 to maxDist (Python recurses inward first, equivalent to
-  // iterating outward since it checks the innermost distance first)
-  for (let dist = 0; dist <= maxDist; dist++) {
-    const candidates = [];
-    for (let dx = -dist; dx <= dist; dx++) {
-      for (let dy = -dist; dy <= dist; dy++) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) === dist) {
-          candidates.push({ x: x + dx, y: y + dy });
+    // Step 1: Fill null entries FIRST (before shifting)
+    for (let i = 0; i < this.data.length; i++) {
+        if (this.data[i] === null) {
+            this.data[i] = rng.nextInt(0, 47);
         }
-      }
     }
 
-    // Shuffle candidates
-    if (rng) {
-      rng.shuffle(candidates);
-    }
+    // Step 2: Shift hints (now operating on fully-populated data)
+    this.shiftHintsToMap();
 
-    for (const cand of candidates) {
-      if (this.isValid(cand.x, cand.y, continent)) {
-        const norm = this.normalizeBlock(cand.x, cand.y);
-        return { x: norm.x, y: norm.y };
-      }
-    }
-  }
+    // Step 3: Compute grain (see item 3)
+    // Step 4: fracInitHints
+    // Step 5: water percent
+    // Step 6: parent generatePlotTypes
+    // ... rest unchanged ...
+}
+```
 
-  return null;
+Also: Python uses `int(100*numWaterPlots/numPlots)` (integer multiplication
+then integer division in Python 2). JS should use
+`Math.floor((waterBlocks / this.data.length) * 100)`.
+
+---
+
+## 3. HintedWorld.js — Grain loop: take LAST match, not first
+
+**Python (lines 422–430):**
+```python
+iGrain = None
+for i in range(minExp):
+    width = (1 << (self.fracXExp - minExp + i))
+    height = (1 << (self.fracYExp - minExp + i))
+    if not self.iFlags & CyFractal.FracVals.FRAC_WRAP_X:
+        width += 1
+    if not self.iFlags & CyFractal.FracVals.FRAC_WRAP_Y:
+        height += 1
+    if size == width*height:
+        iGrain = i
+# No break — takes the LAST match
+# assert(iGrain != None)
+```
+
+**Current JS (lines 601–611):**
+```javascript
+let iGrain = 1; // fallback
+for (let i = 0; i < minExp; i++) {
+    // ...
+    if (size === gw * gh) {
+        iGrain = i;
+        break;  // BUG: takes first match, not last
+    }
+}
+```
+
+**Required change:**
+- Remove the `break`.
+- Initialize `iGrain = null`.
+- After loop, warn if null (matching Python's `assert`), fall back to 1.
+
+```javascript
+let iGrain = null;
+for (let i = 0; i < minExp; i++) {
+    let gw = 1 << (this.fracXExp - minExp + i);
+    let gh = 1 << (this.fracYExp - minExp + i);
+    if (!this.wrapX) gw += 1;
+    if (!this.wrapY) gh += 1;
+    if (size === gw * gh) {
+        iGrain = i;  // no break — take last match
+    }
+}
+if (iGrain === null) {
+    console.warn('HintedWorld: no matching grain for data size', size);
+    iGrain = 1;
 }
 ```
 
 ---
 
-### 2.5 Fix `expandContinentBy()` — Greedy first-valid selection
+## 4. MultilayeredFractal.js — `findBestRegionSplitY`: Reproduce the Civ4 bug
 
-**File:** `src/game/mapgen/HintedWorld.js`
-**Lines:** 385–429
+**Python (lines 680–682):**
+```python
+def findBestRegionSplitY(self, iRegionWidth, iRegionHeight, stripRadius):
+    stripSize = 2*stripRadius
+    if stripSize > iRegionWidth:   # checks WIDTH, not HEIGHT (bug)
+        return 0
+```
 
-**Problem:** JS collects all valid candidates then picks randomly. Python is greedy — it shuffles existing blocks, shuffles directions for each block, and takes the **first** valid neighbor found, then recurses for additional blocks.
+Same bug as `FractalWorld.findBestSplitY` (which JS already reproduces).
 
-**Change:** Replace with greedy approach matching Python:
+**Current JS (line 387):**
+```javascript
+if (stripSize > regionHeight) return 0;  // "fixed" — checks height
+```
+
+**Required change:**
+```javascript
+// Civ4 bug: checks regionWidth, not regionHeight — reproduced for accuracy
+if (stripSize > regionWidth) return 0;
+```
+
+---
+
+## 5. MultilayeredFractal.js — `generatePlotsInRegion`: Remove defensive wrapping
+
+**Python (lines 820–827):**
+```python
+for x in range(iRegionWidth):
+    wholeworldX = x + iWestX
+    for y in range(iRegionHeight):
+        i = y*iRegionWidth + x
+        if self.plotTypes[i] == PlotTypes.PLOT_OCEAN: continue
+        wholeworldY = y + iSouthY
+        iWorld = wholeworldY*self.iW + wholeworldX
+        self.wholeworldPlotTypes[iWorld] = self.plotTypes[i]
+```
+No X-wrapping modulo. No Y-bounds check. Simple addition.
+
+**Current JS (lines 262–276):**
+```javascript
+const globalX = ((iRegionWestX + rx) % this.iNumPlotsX + this.iNumPlotsX) % this.iNumPlotsX;
+const globalY = iRegionSouthY + ry;
+if (globalY >= 0 && globalY < this.iNumPlotsY) { ... }
+```
+
+**Required change:**
+```javascript
+for (let ry = 0; ry < iRegionHeight; ry++) {
+    for (let rx = 0; rx < iRegionWidth; rx++) {
+        const ri = ry * iRegionWidth + rx;
+        if (regionalPlots[ri] === PLOT.OCEAN) continue;
+
+        const globalX = iRegionWestX + rx;
+        const globalY = iRegionSouthY + ry;
+        const iWorld = globalY * this.iNumPlotsX + globalX;
+        this.wholeworldPlotTypes[iWorld] = regionalPlots[ri];
+    }
+}
+```
+
+Callers MUST pass valid region dimensions (documented Civ4 contract).
+
+---
+
+## 6. TerrainGenerator.js — Replace approximate grain with exact XML table
+
+**Python (line 983):**
+```python
+grain_amount += self.gc.getWorldInfo(self.map.getWorldSize()).getTerrainGrainChange()
+```
+
+From `CIV4WorldInfo.xml`:
+
+| World Size | TerrainGrainChange | FeatureGrainChange |
+|------------|-------------------|--------------------|
+| Duel       | 0                 | 0                  |
+| Tiny       | 0                 | 0                  |
+| Small      | 0                 | 0                  |
+| Standard   | 1                 | 1                  |
+| Large      | 1                 | 1                  |
+| Huge       | 1                 | 1                  |
+
+**Current JS (lines 130–135):**
+```javascript
+getWorldSizeGrainAdjust() {
+    const totalPlots = this.iNumPlotsX * this.iNumPlotsY;
+    if (totalPlots <= 2048) return 0;
+    if (totalPlots <= 4800) return 1;
+    return 2;  // WRONG: returns 2 for Large/Huge, XML says 1
+}
+```
+
+**Required change** (in both `TerrainGenerator.js` and `FeatureGenerator.js`):
+
+Accept `mapSize` as a constructor setting:
 
 ```javascript
-expandContinentBy(rng, continent, numBlocks) {
-  if (numBlocks <= 0) return true;
+constructor(mapWidth, mapHeight, settings = {}) {
+    // ...
+    this.mapSize = settings.mapSize || 'standard';
+}
 
-  // Shuffle block order
-  const blockOrder = [...Array(continent.blocks.length).keys()];
-  rng.shuffle(blockOrder);
+getWorldSizeGrainAdjust() {
+    const grainBySize = {
+        duel: 0, tiny: 0, small: 0,
+        standard: 1, large: 1, huge: 1
+    };
+    return grainBySize[this.mapSize] ?? 1;
+}
+```
 
-  for (const blockIndex of blockOrder) {
-    const [bx, by] = continent.blocks[blockIndex];
+Update all callers to pass `mapSize`.
 
-    // Shuffle cardinal directions
-    const dirOrder = [...Array(CARDINAL_DIRS.length).keys()];
-    rng.shuffle(dirOrder);
+---
 
-    for (const dirIndex of dirOrder) {
-      const [dx, dy] = CARDINAL_DIRS[dirIndex];
-      if (this.isValid(bx + dx, by + dy, continent)) {
-        const norm = this.normalizeBlock(bx + dx, by + dy);
-        if (!norm.valid) continue;
+## 7. TerrainGenerator.js — `generateTerrainAtPlot`: Return existing terrain for water
 
-        continent.blocks.push([norm.x, norm.y]);
-        const expandValue = 208 + rng.nextInt(0, 47);
-        this.setValue(norm.x, norm.y, expandValue);
-        this._blockOwner.set(`${norm.x},${norm.y}`, continent.id);
-        continent.invalidateRects();
+**Python (lines 1092–1093):**
+```python
+if (self.map.plot(iX, iY).isWater()):
+    return self.map.plot(iX, iY).getTerrainType()
+```
+Returns the **already-assigned** terrain type for water tiles.
 
-        if (numBlocks > 1) {
-          return this.expandContinentBy(rng, continent, numBlocks - 1);
-        } else {
-          return true;
+**Current JS (lines 223–224):**
+```javascript
+if (plotType === PLOT.OCEAN) return TERRAIN.OCEAN;
+if (plotType === PLOT.COAST) return TERRAIN.COAST;
+```
+Returns hardcoded constants.
+
+**Required change:**
+Accept existing terrain and return it for water tiles:
+
+```javascript
+generateTerrainAtPlot(x, y, plotType, existingTerrain) {
+    if (plotType === PLOT.OCEAN || plotType === PLOT.COAST) {
+        return existingTerrain;
+    }
+    // ...rest unchanged...
+}
+```
+
+Update `generateTerrain` to pre-populate water terrain:
+
+```javascript
+generateTerrain(rng, plotTypes) {
+    // ...init fractals, compute thresholds...
+
+    const terrain = new Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+        if (plotTypes[i] === PLOT.OCEAN) terrain[i] = TERRAIN.OCEAN;
+        else if (plotTypes[i] === PLOT.COAST) terrain[i] = TERRAIN.COAST;
+        else terrain[i] = null;
+    }
+
+    for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+            const idx = y * W + x;
+            terrain[idx] = this.generateTerrainAtPlot(x, y, plotTypes[idx], terrain[idx]);
         }
-      }
     }
-  }
-
-  // Could not expand
-  continent.done = true;
-  return false;
+    return terrain;
 }
 ```
 
-Also add a `done` property to the `Continent` class, initialized based on `numBlocks <= 1` in the constructor (matching Python's `self.done`).
+---
+
+## 8. TerrainGenerator.js — `generateTerrainAtPlot`: Add desert/plains top-threshold checks
+
+**Python (line 1106):**
+```python
+if ((desertVal >= self.iDesertBottom) and (desertVal <= self.iDesertTop) and
+    (lat >= self.fDesertBottomLatitude) and (lat < self.fDesertTopLatitude)):
+```
+Checks BOTH `>= iDesertBottom` AND `<= iDesertTop`. Same for plains.
+
+**Current JS (lines 243–248):**
+Only checks the bottom threshold. The top threshold
+(`getHeightFromPercent(100)`) is the fractal maximum, so the top check is
+always true in practice — but the code should match Python exactly.
+
+**Required change:**
+
+Rename confusing fields and add top thresholds:
+
+```javascript
+// In generateTerrain, replace threshold computation:
+this._iDesertBottom = this.desertFrac.getHeightFromPercent(this.iDesertBottomPercent);
+this._iDesertTop = this.desertFrac.getHeightFromPercent(100);
+this._iPlainsBottom = this.plainsFrac.getHeightFromPercent(this.iPlainsBottomPercent);
+this._iPlainsTop = this.plainsFrac.getHeightFromPercent(100);
+
+// In generateTerrainAtPlot:
+if (desertVal >= this._iDesertBottom && desertVal <= this._iDesertTop &&
+    lat >= this.fDesertBottomLatitude && lat < this.fDesertTopLatitude) {
+    terrain = TERRAIN.DESERT;
+} else if (plainsVal >= this._iPlainsBottom && plainsVal <= this._iPlainsTop) {
+    terrain = TERRAIN.PLAINS;
+}
+```
 
 ---
 
-### 2.6 Update `buildAllContinents()` — Use `continent.done` flag
+## 9. FeatureGenerator.js — Add generic XML feature pass
 
-**File:** `src/game/mapgen/HintedWorld.js`
-**Lines:** 437–479
+**Python (lines 1178–1181):**
+```python
+for iI in range(self.gc.getNumFeatureInfos()):
+    if pPlot.canHaveFeature(iI):
+        if self.mapRand.get(10000, "Add Feature PYTHON") < self.gc.getFeatureInfo(iI).getAppearanceProbability():
+            pPlot.setFeatureType(iI, -1)
+```
+Before ice/jungle/forest, Python iterates ALL feature types and places each
+with its XML `iAppearanceProbability` (out of 10000). In standard BTS XML,
+only **FEATURE_FOREST** has a non-zero value (5000, i.e. 50%).
 
-With the `done` flag now set by `expandContinentBy()` and the `Continent` constructor, simplify the loop to match Python:
+**Current JS:** Entirely skipped.
+
+**Required change:**
+Add a generic feature pass before ice/jungle/forest. Since only forest has
+non-zero probability in BTS, implement just that:
 
 ```javascript
-buildAllContinents(rng) {
-  let allDone = false;
-  while (!allDone) {
-    allDone = true;
-    for (const cont of this.continents) {
-      if (!cont.done) {
-        this.expandContinentBy(rng, cont, 1);
-        allDone = false;
-      }
+addGenericFeaturesAtPlot(x, y, plotTypes, terrain, features, rng) {
+    const idx = y * this.iNumPlotsX + x;
+    const plot = plotTypes[idx];
+    const terr = terrain[idx];
+
+    // FEATURE_FOREST: iAppearanceProbability = 5000 (out of 10000)
+    // canHaveFeature checks: land or hills, terrain is grass/plains/tundra/snow
+    if ((plot === PLOT.LAND || plot === PLOT.HILLS) &&
+        terr !== TERRAIN.DESERT && terr !== TERRAIN.OCEAN && terr !== TERRAIN.COAST) {
+        if (rng.nextInt(0, 9999) < 5000) {
+            features[idx] = FEATURE.FOREST;
+        }
     }
-  }
 }
 ```
 
-Remove the existing safety checks and `canGrow` logic — Python has none of these.
-
----
-
-## 3. MultilayeredFractal.js
-
-### 3.1 Fix `calcWeights()` — Same fix as 1.1
-
-**File:** `src/game/mapgen/MultilayeredFractal.js`
-**Lines:** 313–338
-
-Apply the same `distFromCenter = stripRadius - distFromEdge` fix as section 1.1.
-
----
-
-### 3.2 Fix `shiftRegionPlots()` — Add min/max clamping
-
-**File:** `src/game/mapgen/MultilayeredFractal.js`
-**Lines:** 458–474
-
-**Problem:** Python applies `min(15, iStrip)` then `max(3, iStrip)`. The `min` is overwritten, so the effective result is `max(3, iStrip)`. JS has no clamping.
-
-**Change:** Add the same (buggy) clamping to match Python:
+Update `addFeaturesAtPlot` to call this first:
 
 ```javascript
-shiftRegionPlots(plotData, regionWidth, regionHeight, iStrip = 15) {
-  // Match Python's min/max sequence: min is overwritten by max
-  let stripRadius = Math.min(15, iStrip);
-  stripRadius = Math.max(3, iStrip);  // Note: uses iStrip, not stripRadius — matches Python bug
-
-  const bestShiftX = this.findBestRegionSplitX(plotData, regionWidth, regionHeight, stripRadius);
-  const bestShiftY = this.findBestRegionSplitY(plotData, regionWidth, regionHeight, stripRadius);
-  // ... rest unchanged
-}
-```
-
----
-
-### 3.3 Fix `findBestRegionSplitX()` / `findBestRegionSplitY()` — Count only PLOT_LAND
-
-**File:** `src/game/mapgen/MultilayeredFractal.js`
-**Lines:** 352–445
-
-Same fix as section 1.2. Change `!== PLOT.OCEAN` to `=== PLOT.LAND` and use `landScore`/`bFoundLand` pattern.
-
----
-
-### 3.4 Remove rift/invert_heights handling from `generatePlotsInRegion()`
-
-**File:** `src/game/mapgen/MultilayeredFractal.js`
-**Lines:** 157–298
-
-**Problem:** JS implements rift support and `invert_heights` in `generatePlotsInRegion()`. Python does not use these parameters — it always calls plain `fracInit`.
-
-**Change:** Remove the rift_grain/has_center_rift/invert_heights logic. Always use plain `fracInit`:
-
-```javascript
-// Replace lines 189-211 with:
-continentsFrac.fracInit(
-  iRegionWidth, iRegionHeight,
-  iRegionGrain, rng, iRegionPlotFlags
-);
-```
-
-Remove the `FRAC_INVERT_HEIGHTS` and `FRAC_CENTER_RIFT` flag building for this method. The parameters can remain in the interface for documentation purposes but should be ignored in the implementation body.
-
----
-
-### 3.5 Remove sea level adjustment from `generatePlotsInRegion()`
-
-**File:** `src/game/mapgen/MultilayeredFractal.js`
-**Lines:** 224–228
-
-**Problem:** JS applies `seaLevelChange`. Python uses raw `iWaterPercent`.
-
-**Change:**
-
-```javascript
-// BEFORE:
-const adjustedWaterPercent = clamp(iWaterPercent + this.seaLevelChange, 0, 100);
-const iWaterThreshold = continentsFrac.getHeightFromPercent(adjustedWaterPercent);
-
-// AFTER:
-const iWaterThreshold = continentsFrac.getHeightFromPercent(iWaterPercent);
-```
-
----
-
-## 4. TerrainGenerator.js
-
-### 4.1 Fix variation fractal grain — Use base grain, not +1
-
-**File:** `src/game/mapgen/TerrainGenerator.js`
-**Lines:** 170–173
-
-**Problem:** JS initializes variation fractal with `grain_amount + 1` (same as plains). Python uses `grain_amount` (same as desert).
-
-**Change:**
-
-```javascript
-// BEFORE (wrong — same grain as plains):
-this.variationFrac.fracInit(
-  W, H, this.grain_amount + 1 + grainAdjust, rng, flags
-);
-
-// AFTER (matches Python — same grain as desert):
-this.variationFrac.fracInit(
-  W, H, this.grain_amount + grainAdjust, rng, flags
-);
-```
-
----
-
-### 4.2 Remove mountain terrain override
-
-**File:** `src/game/mapgen/TerrainGenerator.js`
-
-**Problem:** JS has a `mountainFrac` (4th fractal) and a mountain terrain override system (lines 270–278) that forces some hills/peaks at tundra+ latitudes to SNOW. This does not exist in the Python.
-
-**Changes:**
-
-1. Remove `this.mountainFrac` creation from the constructor (line 122).
-2. Remove `this._iMountainTopHeight` and `this._iMountainBottomHeight` from the constructor (lines 126–127).
-3. Remove `this.iMountainTopPercent` and `this.iMountainBottomPercent` from the constructor (lines 115–116).
-4. Remove `mountainFrac.fracInit()` call from `initFractals()` (lines 175–178).
-5. Remove the mountain threshold computation from `generateTerrain()` (lines 303–304).
-6. Remove the mountain terrain override block from `generateTerrainAtPlot()` (lines 270–278).
-
----
-
-### 4.3 Fix `getLatitudeAtPlot()` — Use Civ4's H/2 normalization
-
-**File:** `src/game/mapgen/TerrainGenerator.js`
-**Lines:** 198–211
-
-**Problem:** JS uses a `topLatitude`/`bottomLatitude` system with `(H-1)` normalization. Python uses `abs((H/2) - y) / (H/2)`.
-
-**Change:** Replace the method to match Python exactly:
-
-```javascript
-getLatitudeAtPlot(x, y) {
-  // Civ4: lat = abs((H/2) - y) / (H/2)
-  // 0.0 = equator (center of map), 1.0 = pole (top/bottom)
-  const halfH = this.iNumPlotsY / 2;
-  let lat = Math.abs(halfH - y) / halfH;
-
-  // Variation fractal jitter: ±0.1 range
-  lat += (128 - this.variationFrac.getHeight(x, y)) / (255.0 * 5.0);
-
-  return Math.max(0.0, Math.min(1.0, lat));
-}
-```
-
-Remove the `topLatitude` and `bottomLatitude` properties from the constructor. They are not part of the Python TerrainGenerator.
-
-> **Note:** If any map scripts (Inland Sea, Ice Age, etc.) override `getLatitudeAtPlot()` using the `topLatitude`/`bottomLatitude` system, those overrides must be updated to use the Civ4 base formula and apply their own compression on top.
-
----
-
-## 5. FeatureGenerator.js
-
-### 5.1 Fix jungle fractal thresholds — Centered band
-
-**File:** `src/game/mapgen/FeatureGenerator.js`
-**Lines:** 215–216
-
-**Problem:** JS uses bottom-anchored range (0th–80th percentile). Python centers the eligible band (10th–90th percentile).
-
-**Change:**
-
-```javascript
-// BEFORE (wrong — bottom-anchored):
-this._iJungleTop = this.jungleFrac.getHeightFromPercent(this.iJunglePercent);
-this._iJungleBottom = this.jungleFrac.getHeightFromPercent(0);
-
-// AFTER (matches Python — centered band):
-this._iJungleBottom = this.jungleFrac.getHeightFromPercent(
-  Math.floor((100 - this.iJunglePercent) / 2)
-);
-this._iJungleTop = this.jungleFrac.getHeightFromPercent(
-  Math.floor((100 + this.iJunglePercent) / 2)
-);
-```
-
-With `iJunglePercent=80`: bottom = 10th percentile, top = 90th percentile.
-
----
-
-### 5.2 Fix forest threshold — Top 40%, not top 60%
-
-**File:** `src/game/mapgen/FeatureGenerator.js`
-**Line:** 217
-
-**Problem:** JS computes `getHeightFromPercent(100 - 60) = 40th percentile`, giving top 60% forest. Python computes `getHeightFromPercent(60) = 60th percentile`, giving top 40% forest.
-
-**Change:**
-
-```javascript
-// BEFORE (wrong — top 60%):
-this._iForestLevel = this.forestFrac.getHeightFromPercent(100 - this.iForestPercent);
-
-// AFTER (matches Python — top 40%):
-this._iForestLevel = this.forestFrac.getHeightFromPercent(this.iForestPercent);
-```
-
----
-
-### 5.3 Fix `addIceAtPlot()` — Edge condition, single random roll, ice latitude
-
-**File:** `src/game/mapgen/FeatureGenerator.js`
-**Lines:** 315–346
-
-**Problem 1:** JS always applies edge-row ice. Python only does this for wrapX-but-not-wrapY maps (and vice versa for columns).
-
-**Problem 2:** JS uses two random rolls. Python uses one.
-
-**Problem 3:** JS generates `_randIceLatitude` from RNG. Python reads it from climate XML via `getRandIceLatitude()`.
-
-**Change:** The `_randIceLatitude` value should be passed in via settings (caller provides the climate-appropriate value). Replace the method:
-
-```javascript
-addIceAtPlot(x, y, lat, plotTypes, features, rng) {
-  const W = this.iNumPlotsX;
-  const H = this.iNumPlotsY;
-  const idx = y * W + x;
-  const plot = plotTypes[idx];
-
-  // Ice only on water
-  if (plot !== PLOT.OCEAN && plot !== PLOT.COAST) return;
-
-  // Edge rows: ice only on specific wrap configurations
-  if (this.wrapX && !this.wrapY) {
-    if (y === 0 || y === H - 1) {
-      features[idx] = FEATURE.ICE;
-      return;
+addFeaturesAtPlot(x, y, plotTypes, terrain, features, rng) {
+    const idx = y * this.iNumPlotsX + x;
+    const lat = this.getLatitudeAtPlot(x, y);
+
+    // Step 1: Generic XML features (appearance probability)
+    this.addGenericFeaturesAtPlot(x, y, plotTypes, terrain, features, rng);
+
+    // Step 2: Ice (only if no feature yet — matches Python check pattern)
+    if (features[idx] === FEATURE.NONE) {
+        this.addIceAtPlot(x, y, lat, plotTypes, features, rng);
     }
-  } else if (this.wrapY && !this.wrapX) {
-    if (x === 0 || x === W - 1) {
-      features[idx] = FEATURE.ICE;
-      return;
+
+    // Step 3: Jungle
+    if (features[idx] === FEATURE.NONE) {
+        this.addJunglesAtPlot(x, y, lat, plotTypes, terrain, features);
     }
-  }
 
-  // Single random roll for both checks (matches Python)
-  const rand = rng.nextInt(0, 99) / 100.0;
-
-  // Dense ice band
-  if (rand < 8.0 * (lat - (1.0 - (this._randIceLatitude / 2.0)))) {
-    features[idx] = FEATURE.ICE;
-  }
-  // Sparse ice band (elif — only checked if dense didn't trigger)
-  else if (rand < 4.0 * (lat - (1.0 - this._randIceLatitude))) {
-    features[idx] = FEATURE.ICE;
-  }
+    // Step 4: Forest
+    if (features[idx] === FEATURE.NONE) {
+        this.addForestsAtPlot(x, y, lat, plotTypes, terrain, features);
+    }
 }
 ```
 
-Key differences from current JS:
-- Edge-row ice is conditional on wrap configuration
-- One `rng.nextInt(0, 99) / 100.0` roll (integer 0–99 divided by 100), not `rng.next()`
-- `elif` for sparse check (not independent `if`)
-
-For `_randIceLatitude`: add a `randIceLatitude` setting to the constructor that callers pass in from their climate configuration. Remove the RNG-based generation from `generateFeatures()`.
-
 ---
 
-### 5.4 Fix `getLatitudeAtPlot()` — Use Civ4's H/2 normalization
+## 10. FeatureGenerator.js — `_randIceLatitude`: Use climate parameter, not random
 
-**File:** `src/game/mapgen/FeatureGenerator.js`
-**Lines:** 176–184
+**Python (lines 1200–1203):**
+```python
+if rand < 8 * (lat - (1.0 - (self.gc.getClimateInfo(self.map.getClimate()).getRandIceLatitude() / 2.0))):
+```
+`getRandIceLatitude()` returns a **fixed climate XML parameter**:
 
-Same fix as TerrainGenerator 4.3, but **without** the variation fractal jitter (FeatureGenerator's latitude is simpler):
+| Climate    | fRandIceLatitude |
+|------------|-----------------|
+| Tropical   | 0.30            |
+| Arid       | 0.30            |
+| Rocky      | 0.30            |
+| Cold       | 0.60            |
+| Temperate  | 0.30            |
+
+**Current JS (line 218):**
+```javascript
+this._randIceLatitude = rng.nextInt(0, 99) / 500.0;  // random 0–0.198
+```
+Generates a random value instead of using the climate constant.
+
+**Required change:**
+Accept `randIceLatitude` as a constructor setting:
 
 ```javascript
-getLatitudeAtPlot(_x, y) {
-  const halfH = this.iNumPlotsY / 2;
-  let lat = Math.abs(halfH - y) / halfH;
-  return Math.max(0.0, Math.min(1.0, lat));
+constructor(mapWidth, mapHeight, settings = {}) {
+    // ...
+    this.randIceLatitude = settings.randIceLatitude ?? 0.30;
 }
 ```
 
-Remove the `topLatitude` and `bottomLatitude` properties from the constructor.
+In `generateFeatures`, remove the random generation line. Use
+`this.randIceLatitude` directly in `addIceAtPlot` instead of
+`this._randIceLatitude`.
+
+Update all callers to pass the climate-appropriate value.
 
 ---
 
-## 6. Cross-cutting: Continent class changes
+## 11. FeatureGenerator.js — Add `canHaveFeature` helper
 
-### 6.1 Add `done` flag to Continent
+**Python** uses C++ `pPlot.canHaveFeature(featureType)` for all feature
+placement. JS manually checks plot type and terrain in each `add*` method.
 
-**File:** `src/game/mapgen/HintedWorld.js`
-
-Add `done` property to the `Continent` constructor:
+**Required change:**
+Add a centralized `canHaveFeature` method matching Civ4 XML rules:
 
 ```javascript
-constructor(id, centerX, centerY, targetNumBlocks, maxRadius = -1) {
-  // ... existing properties ...
-  this.done = (targetNumBlocks <= 1);
+canHaveFeature(featureType, plotType, terrainType) {
+    switch (featureType) {
+        case FEATURE.ICE:
+            return (plotType === PLOT.OCEAN || plotType === PLOT.COAST);
+
+        case FEATURE.JUNGLE:
+            if (plotType !== PLOT.LAND && plotType !== PLOT.HILLS) return false;
+            return (terrainType === TERRAIN.GRASSLAND);
+
+        case FEATURE.FOREST:
+            if (plotType !== PLOT.LAND && plotType !== PLOT.HILLS) return false;
+            return (terrainType === TERRAIN.GRASSLAND ||
+                    terrainType === TERRAIN.PLAINS ||
+                    terrainType === TERRAIN.TUNDRA ||
+                    terrainType === TERRAIN.SNOW);
+
+        case FEATURE.OASIS:
+            return (plotType === PLOT.LAND && terrainType === TERRAIN.DESERT);
+
+        case FEATURE.FLOODPLAINS:
+            return (plotType === PLOT.LAND && terrainType === TERRAIN.DESERT);
+
+        default:
+            return false;
+    }
 }
 ```
 
-This is used by `buildAllContinents()` (section 2.6) and set by `expandContinentBy()` on failure (section 2.5).
+Use this in `addIceAtPlot`, `addJunglesAtPlot`, `addForestsAtPlot`,
+`addGenericFeaturesAtPlot`, and `addOasisAtPlot` instead of inline checks.
 
 ---
 
-## 7. Callers / map scripts
+## Files affected
 
-After making these changes, audit all map scripts in `src/game/mapgen/scripts/` for:
+| File | Items |
+|------|-------|
+| `src/game/mapgen/HintedWorld.js` | 1, 2, 3 |
+| `src/game/mapgen/MultilayeredFractal.js` | 4, 5 |
+| `src/game/mapgen/TerrainGenerator.js` | 6, 7, 8 |
+| `src/game/mapgen/FeatureGenerator.js` | 9, 10, 11 |
+| `src/game/mapgen/FractalWorld.js` | No changes needed |
+| `src/game/mapgen/utils.js` | No changes needed |
 
-1. **`_randIceLatitude`**: Scripts that create `FeatureGenerator` must pass `randIceLatitude` from their climate config instead of relying on RNG generation.
+## Callers to update
 
-2. **`topLatitude`/`bottomLatitude`**: Any script overriding `getLatitudeAtPlot()` using these removed properties must be updated to use the Civ4 `H/2` formula as the base, with script-specific compression applied on top.
-
-3. **`expandContinentBy` is now recursive**: Callers that previously expected iterative behavior should verify stack depth is acceptable (continent blocks are typically < 30, so recursion depth is safe).
-
-4. **`MultilayeredFractal.generatePlotsInRegion`**: Scripts passing `rift_grain`, `has_center_rift`, or `invert_heights` should be aware these are now no-ops. If any script relied on JS-only rift behavior in regions, that behavior will change.
+Items 6 and 10 add new constructor settings (`mapSize`, `randIceLatitude`)
+that must be passed by callers. Grep for `new TerrainGenerator` and
+`new FeatureGenerator` across:
+- `src/game/mapgen/scripts/*.js` (all 10 map scripts)
+- `src/game/mapgen/index.js` (pipeline entry point)
 
 ---
 
 ## Change Summary
 
-| #   | File                      | Method                        | Change Type     |
-|-----|---------------------------|-------------------------------|-----------------|
-| 1.1 | FractalWorld.js           | `calcWeights`                 | Formula fix     |
-| 1.2 | FractalWorld.js           | `findBestSplitX`              | Condition fix   |
-| 1.3 | FractalWorld.js           | `findBestSplitY`              | Condition fix   |
-| 1.4 | FractalWorld.js           | `shiftPlotTypesBy`            | Rewrite         |
-| 2.1 | HintedWorld.js            | `bestHintsSplitX`             | Rewrite         |
-| 2.2 | HintedWorld.js            | `bestHintsSplitY`             | Rewrite         |
-| 2.3 | HintedWorld.js            | `isValid`                     | Formula fix     |
-| 2.4 | HintedWorld.js            | `findValid`                   | Rewrite         |
-| 2.5 | HintedWorld.js            | `expandContinentBy`           | Rewrite         |
-| 2.6 | HintedWorld.js            | `buildAllContinents`          | Simplify        |
-| 3.1 | MultilayeredFractal.js    | `calcWeights`                 | Formula fix     |
-| 3.2 | MultilayeredFractal.js    | `shiftRegionPlots`            | Add clamping    |
-| 3.3 | MultilayeredFractal.js    | `findBestRegionSplit*`        | Condition fix   |
-| 3.4 | MultilayeredFractal.js    | `generatePlotsInRegion`       | Remove rifts    |
-| 3.5 | MultilayeredFractal.js    | `generatePlotsInRegion`       | Remove sea adj  |
-| 4.1 | TerrainGenerator.js       | `initFractals`                | Grain fix       |
-| 4.2 | TerrainGenerator.js       | constructor + multiple        | Remove mountain |
-| 4.3 | TerrainGenerator.js       | `getLatitudeAtPlot`           | Rewrite         |
-| 5.1 | FeatureGenerator.js       | `generateFeatures`            | Threshold fix   |
-| 5.2 | FeatureGenerator.js       | `generateFeatures`            | Threshold fix   |
-| 5.3 | FeatureGenerator.js       | `addIceAtPlot`                | Rewrite         |
-| 5.4 | FeatureGenerator.js       | `getLatitudeAtPlot`           | Rewrite         |
-| 6.1 | HintedWorld.js            | `Continent` constructor       | Add `done` flag |
+| #  | File                   | Method / Area                   | Change Type      |
+|----|------------------------|---------------------------------|------------------|
+| 1  | HintedWorld.js         | `addContinent`                  | Reorder logic    |
+| 2  | HintedWorld.js         | `generatePlotTypes`             | Reorder steps    |
+| 3  | HintedWorld.js         | grain loop in `generatePlotTypes` | Remove `break` |
+| 4  | MultilayeredFractal.js | `findBestRegionSplitY`          | Bug reproduction |
+| 5  | MultilayeredFractal.js | `generatePlotsInRegion` layering | Remove wrapping |
+| 6  | TerrainGenerator.js    | `getWorldSizeGrainAdjust`       | Use XML table    |
+| 7  | TerrainGenerator.js    | `generateTerrainAtPlot` water   | Pass-through     |
+| 8  | TerrainGenerator.js    | `generateTerrainAtPlot` desert  | Add top check    |
+| 9  | FeatureGenerator.js    | `addFeaturesAtPlot`             | Add XML pass     |
+| 10 | FeatureGenerator.js    | `_randIceLatitude`              | Climate param    |
+| 11 | FeatureGenerator.js    | new `canHaveFeature`            | Centralize       |

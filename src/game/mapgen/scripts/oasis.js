@@ -126,11 +126,12 @@ function generateOasisPlots(W, H, rng) {
 // ============================================================================
 
 class OasisTerrainGenerator extends TerrainGenerator {
-  constructor(W, H) {
+  constructor(W, H, settings = {}) {
     super(W, H, {
       iDesertPercent: 32,
       iPlainsPercent: 18,
-      wrapX: false, wrapY: false
+      wrapX: false, wrapY: false,
+      mapSize: settings.mapSize
     });
     this.iOasisGrassPercent = 9;
     this.iOasisPlainsPercent = 16;
@@ -153,9 +154,8 @@ class OasisTerrainGenerator extends TerrainGenerator {
     return super.generateTerrain(rng, plotTypes);
   }
 
-  generateTerrainAtPlot(x, y, plotType) {
-    if (plotType === PLOT.OCEAN) return TERRAIN.OCEAN;
-    if (plotType === PLOT.COAST) return TERRAIN.COAST;
+  generateTerrainAtPlot(x, y, plotType, existingTerrain) {
+    if (plotType === PLOT.OCEAN || plotType === PLOT.COAST) return existingTerrain;
 
     const lat = this.getLatitudeAtPlot(x, y);
 
@@ -314,7 +314,7 @@ export default {
     TerrainGenerator.addCoastTiles(plotTypes1D, W, H, false, false);
 
     // Custom 4-band terrain
-    const tg = new OasisTerrainGenerator(W, H);
+    const tg = new OasisTerrainGenerator(W, H, { mapSize });
     const terrain1D = tg.generateTerrain(rng, plotTypes1D);
 
     // Nile-style rivers
@@ -327,7 +327,9 @@ export default {
     // Features (Civ4 Oasis: linear latitude 0→1 south→north)
     const fg = new OasisFeatureGenerator(W, H, {
       jungleLatitude: 0.15,
-      wrapX: false, wrapY: false
+      randIceLatitude: 0.30,
+      wrapX: false, wrapY: false,
+      mapSize
     });
     const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
 

@@ -97,6 +97,9 @@ export class TerrainGenerator {
     const fracXExp = settings.fracXExp || 7;
     const fracYExp = settings.fracYExp || 6;
 
+    // Map size key for exact XML grain lookup
+    this.mapSize = settings.mapSize || 'standard';
+
     // Map wrapping
     this.wrapX = settings.wrapX !== false;
     this.wrapY = settings.wrapY || false;
@@ -114,8 +117,10 @@ export class TerrainGenerator {
     this.variationFrac = new CyFractal(fracXExp, fracYExp);
 
     // Cached height thresholds (set during generateTerrain)
-    this._iDesertTopHeight = 0;
-    this._iPlainsTopHeight = 0;
+    this._iDesertBottom = 0;
+    this._iDesertTop = 0;
+    this._iPlainsBottom = 0;
+    this._iPlainsTop = 0;
   }
 
   // ==========================================================================
@@ -124,14 +129,15 @@ export class TerrainGenerator {
 
   /**
    * Get grain adjustment based on map size.
-   * Civ4 adjusts terrain fractal grain by world size for appropriate feature scale.
-   * @returns {number} Grain adjustment (0, 1, or 2)
+   * Exact values from CIV4WorldInfo.xml TerrainGrainChange.
+   * @returns {number} Grain adjustment
    */
   getWorldSizeGrainAdjust() {
-    const totalPlots = this.iNumPlotsX * this.iNumPlotsY;
-    if (totalPlots <= 2048) return 0;       // Duel/Tiny (up to ~52x40)
-    if (totalPlots <= 4800) return 1;       // Small/Standard
-    return 2;                                // Large/Huge
+    const grainBySize = {
+      duel: 0, tiny: 0, small: 0,
+      standard: 1, large: 1, huge: 1
+    };
+    return grainBySize[this.mapSize] ?? 1;
   }
 
   /**
@@ -218,10 +224,11 @@ export class TerrainGenerator {
    * @param {number} plotType - Plot type from PLOT enum
    * @returns {string} Terrain type from TERRAIN enum
    */
-  generateTerrainAtPlot(x, y, plotType) {
-    // 1. Water tiles: assign ocean/coast directly
-    if (plotType === PLOT.OCEAN) return TERRAIN.OCEAN;
-    if (plotType === PLOT.COAST) return TERRAIN.COAST;
+  generateTerrainAtPlot(x, y, plotType, existingTerrain) {
+    // 1. Water tiles: return existing terrain (matches Civ4)
+    if (plotType === PLOT.OCEAN || plotType === PLOT.COAST) {
+      return existingTerrain;
+    }
 
     // 2. Default terrain
     let terrain = TERRAIN.GRASSLAND;
@@ -236,15 +243,15 @@ export class TerrainGenerator {
     } else if (lat < this.fGrassLatitude) {
       terrain = TERRAIN.GRASSLAND;  // forced grass near equator
     } else {
-      // 4. Desert/Plains fractal zone
+      // 4. Desert/Plains fractal zone (check both bottom AND top thresholds)
       const desertVal = this.desertFrac.getHeight(x, y);
       const plainsVal = this.plainsFrac.getHeight(x, y);
 
-      if (desertVal >= this._iDesertTopHeight &&
+      if (desertVal >= this._iDesertBottom && desertVal <= this._iDesertTop &&
           lat >= this.fDesertBottomLatitude &&
           lat < this.fDesertTopLatitude) {
         terrain = TERRAIN.DESERT;
-      } else if (plainsVal >= this._iPlainsTopHeight) {
+      } else if (plainsVal >= this._iPlainsBottom && plainsVal <= this._iPlainsTop) {
         terrain = TERRAIN.PLAINS;
       }
       // else: stays GRASSLAND
@@ -270,18 +277,25 @@ export class TerrainGenerator {
     // Initialize all four fractals
     this.initFractals(rng);
 
-    // Compute height thresholds from fractal percentiles
-    this._iDesertTopHeight = this.desertFrac.getHeightFromPercent(this.iDesertBottomPercent);
-    this._iPlainsTopHeight = this.plainsFrac.getHeightFromPercent(this.iPlainsBottomPercent);
+    // Compute height thresholds from fractal percentiles (both bottom AND top)
+    this._iDesertBottom = this.desertFrac.getHeightFromPercent(this.iDesertBottomPercent);
+    this._iDesertTop = this.desertFrac.getHeightFromPercent(100);
+    this._iPlainsBottom = this.plainsFrac.getHeightFromPercent(this.iPlainsBottomPercent);
+    this._iPlainsTop = this.plainsFrac.getHeightFromPercent(100);
 
-    // Allocate terrain array
+    // Pre-populate water terrain, then assign land terrain per-tile
     const terrain = new Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+      if (plotTypes[i] === PLOT.OCEAN) terrain[i] = TERRAIN.OCEAN;
+      else if (plotTypes[i] === PLOT.COAST) terrain[i] = TERRAIN.COAST;
+      else terrain[i] = null;
+    }
 
     // Assign terrain to each tile
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const idx = y * W + x;
-        terrain[idx] = this.generateTerrainAtPlot(x, y, plotTypes[idx]);
+        terrain[idx] = this.generateTerrainAtPlot(x, y, plotTypes[idx], terrain[idx]);
       }
     }
 

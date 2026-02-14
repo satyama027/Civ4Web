@@ -276,7 +276,7 @@ export default {
     TerrainGenerator.addCoastTiles(plotTypes1D, W, H, false, false);
 
     // ── STAGE 2: Generate terrain + mirror ──
-    const tg = new TerrainGenerator(W, H, { wrapX: false, wrapY: false });
+    const tg = new TerrainGenerator(W, H, { wrapX: false, wrapY: false, mapSize });
     const terrain1D = tg.generateTerrain(rng, plotTypes1D);
     mirrorArray(terrain1D, W, H, transform);
 
@@ -292,6 +292,8 @@ export default {
     // ── STAGE 5: Features + mirror ──
     const fg = new FeatureGenerator(W, H, {
       jungleLatitude: climateConfig.jungleLatitude,
+      randIceLatitude: climateConfig.randIceLatitude,
+      mapSize,
       wrapX: false, wrapY: false
     });
     const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);

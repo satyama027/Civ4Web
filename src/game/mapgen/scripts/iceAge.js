@@ -49,7 +49,7 @@ function resolveIceAgeGrain(customOption, rng) {
 // ============================================================================
 
 class IceAgeTerrainGenerator extends TerrainGenerator {
-  constructor(W, H) {
+  constructor(W, H, settings = {}) {
     super(W, H, {
       iDesertPercent: 20,
       iPlainsPercent: 50,
@@ -58,7 +58,8 @@ class IceAgeTerrainGenerator extends TerrainGenerator {
       fGrassLatitude: 0.1,
       fDesertBottomLatitude: 0.1,
       fDesertTopLatitude: 0.2,
-      wrapX: true, wrapY: false
+      wrapX: true, wrapY: false,
+      mapSize: settings.mapSize
     });
   }
 
@@ -73,13 +74,15 @@ class IceAgeTerrainGenerator extends TerrainGenerator {
 // ============================================================================
 
 class IceAgeFeatureGenerator extends FeatureGenerator {
-  constructor(W, H) {
+  constructor(W, H, settings = {}) {
     super(W, H, {
       iJunglePercent: 30,
       iForestPercent: 50,
       jungle_grain: 7,
       jungleLatitude: 0.00,  // no jungle (ice age)
-      wrapX: true, wrapY: false
+      randIceLatitude: settings.randIceLatitude ?? 0.30,
+      wrapX: true, wrapY: false,
+      mapSize: settings.mapSize
     });
   }
 
@@ -220,7 +223,7 @@ export default {
     TerrainGenerator.addCoastTiles(plotTypes1D, W, H, true, false);
 
     // Custom terrain
-    const tg = new IceAgeTerrainGenerator(W, H);
+    const tg = new IceAgeTerrainGenerator(W, H, { mapSize });
     const terrain1D = tg.generateTerrain(rng, plotTypes1D);
 
     // Rivers
@@ -229,7 +232,10 @@ export default {
     const lakes1D = riverGen.addLakes(plotTypes1D);
 
     // Custom features (aggressive ice)
-    const fg = new IceAgeFeatureGenerator(W, H);
+    const fg = new IceAgeFeatureGenerator(W, H, {
+      randIceLatitude: climateConfig.randIceLatitude,
+      mapSize
+    });
     const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
 
     // Bonuses

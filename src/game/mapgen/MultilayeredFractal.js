@@ -259,19 +259,16 @@ export class MultilayeredFractal {
     }
 
     // 11. Layer onto global array (KEY: ocean plots are SKIPPED)
-    for (let ry = 0; ry < iRegionHeight; ry++) {
-      for (let rx = 0; rx < iRegionWidth; rx++) {
-        const plotType = regionalPlots[ry * iRegionWidth + rx];
+    // Python: no X-wrapping, no Y-bounds check — callers must pass valid dimensions
+    for (let rx = 0; rx < iRegionWidth; rx++) {
+      const globalX = iRegionWestX + rx;
+      for (let ry = 0; ry < iRegionHeight; ry++) {
+        const ri = ry * iRegionWidth + rx;
+        if (regionalPlots[ri] === PLOT.OCEAN) continue;
 
-        // Only layer non-ocean plots — ocean never erases existing land
-        if (plotType !== PLOT.OCEAN) {
-          const globalX = ((iRegionWestX + rx) % this.iNumPlotsX + this.iNumPlotsX) % this.iNumPlotsX;
-          const globalY = iRegionSouthY + ry;
-
-          if (globalY >= 0 && globalY < this.iNumPlotsY) {
-            this.wholeworldPlotTypes[globalY * this.iNumPlotsX + globalX] = plotType;
-          }
-        }
+        const globalY = iRegionSouthY + ry;
+        const iWorld = globalY * this.iNumPlotsX + globalX;
+        this.wholeworldPlotTypes[iWorld] = regionalPlots[ri];
       }
     }
   }
@@ -384,7 +381,8 @@ export class MultilayeredFractal {
   findBestRegionSplitY(plotData, regionWidth, regionHeight, stripRadius) {
     const stripSize = 2 * stripRadius;
 
-    if (stripSize > regionHeight) return 0;
+    // Civ4 bug: checks regionWidth, not regionHeight — reproduced for accuracy
+    if (stripSize > regionWidth) return 0;
 
     const scores = new Array(regionHeight).fill(0);
     const weights = this.calcWeights(stripRadius);
