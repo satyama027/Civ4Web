@@ -19,15 +19,11 @@
 
 import { CyFractal, FRAC_POLAR, FRAC_CENTER_RIFT, FRAC_INVERT_HEIGHTS, FRAC_WRAP_X, FRAC_WRAP_Y } from './CyFractal.js';
 import { clamp } from './utils.js';
-import { resolveClimateSettings, resolveSeaLevelChange } from './scripts/_helpers.js';
 
 // ============================================================================
 // PLOT TYPE ENUM
 // ============================================================================
 
-/**
- * Plot types matching Civ4's PlotTypes enum
- */
 /**
  * Plot types matching Civ4's PlotTypes enum exactly.
  * Civ4 has only 4 plot types. Coast is a TERRAIN type, not a plot type.
@@ -95,13 +91,17 @@ export class FractalWorld {
 
     // Resolve climate-dependent hill/peak params (mirrors Python reading from C++ engine)
     // Direct overrides take priority; else resolve from climate string; else use temperate defaults
-    const climateConfig = settings.climate ? resolveClimateSettings(settings.climate) : null;
+    // Inline lookup avoids circular import with _helpers.js (which imports PLOT from this file)
+    const CLIMATE_HILLS = { temperate: 5, tropical: 5, arid: 5, rocky: 7, cold: 5 };
+    const CLIMATE_PEAKS = { temperate: 25, tropical: 25, arid: 25, rocky: 35, cold: 25 };
+    const SEA_LEVEL_CHANGE = { low: -5, medium: 0, high: 5 };
+    const climateKey = settings.climate || null;
 
     // Sea level configuration
     if (settings.seaLevelChange != null) {
       this.seaLevelChange = settings.seaLevelChange;
     } else if (settings.seaLevel) {
-      this.seaLevelChange = resolveSeaLevelChange(settings.seaLevel);
+      this.seaLevelChange = SEA_LEVEL_CHANGE[settings.seaLevel] ?? 0;
     } else {
       this.seaLevelChange = 0;
     }
@@ -112,13 +112,13 @@ export class FractalWorld {
     // Two bands: centered at 25% and 75% percentile
     // Default 5 matches CLIMATE_TEMPERATE XML value
     this.hillGroupOneBase = 25;
-    this.hillGroupOneRange = settings.hillGroupOneRange ?? (climateConfig ? climateConfig.iHillRange : 5);
+    this.hillGroupOneRange = settings.hillGroupOneRange ?? (climateKey ? (CLIMATE_HILLS[climateKey] ?? 5) : 5);
     this.hillGroupTwoBase = 75;
-    this.hillGroupTwoRange = settings.hillGroupTwoRange ?? (climateConfig ? climateConfig.iHillRange : 5);
+    this.hillGroupTwoRange = settings.hillGroupTwoRange ?? (climateKey ? (CLIMATE_HILLS[climateKey] ?? 5) : 5);
 
     // Peaks percentage (from Civ4 climate XML: iPeakPercent)
     // Default 25 matches CLIMATE_TEMPERATE XML value
-    this.peakPercent = settings.peakPercent ?? (climateConfig ? climateConfig.iPeakPercent : 25);
+    this.peakPercent = settings.peakPercent ?? (climateKey ? (CLIMATE_PEAKS[climateKey] ?? 25) : 25);
 
     // Shift configuration
     this.stripRadius = settings.stripRadius || 15;
