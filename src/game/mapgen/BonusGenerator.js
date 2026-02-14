@@ -569,6 +569,10 @@ export class BonusGenerator {
   /**
    * Place a single bonus type on the map.
    *
+   * Uses Civ4's per-area density: each landmass gets at least 1 of each
+   * valid resource if it has any eligible tiles. Larger landmasses get
+   * proportionally more. This ensures small islands aren't resource-starved.
+   *
    * @param {Object} bonusDef - Bonus definition from BONUS_DEFS
    * @param {SeededRandom} rng - Random number generator
    * @param {number[]} plotTypes - 1D array of PLOT values
@@ -581,39 +585,70 @@ export class BonusGenerator {
     const W = this.iNumPlotsX;
     const H = this.iNumPlotsY;
 
-    // 1. Find all valid tiles for this bonus (ignoring spacing for count estimation)
-    const validTiles = [];
+    // 1. Find all valid tiles grouped by area
+    const validByArea = new Map(); // areaId → [{x, y}]
+    const allValid = [];
+
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const canPlace = this._scriptCanPlaceBonusAt
           ? this._scriptCanPlaceBonusAt(x, y, bonusDef, plotTypes, terrain, features, bonuses)
           : this._canPlaceBonusAt(x, y, bonusDef, plotTypes, terrain, features, bonuses, false);
         if (canPlace) {
-          validTiles.push({ x, y });
+          const tile = { x, y };
+          allValid.push(tile);
+          const areaId = areas[y * W + x];
+          if (areaId >= 0) {
+            if (!validByArea.has(areaId)) validByArea.set(areaId, []);
+            validByArea.get(areaId).push(tile);
+          }
         }
       }
     }
 
-    if (validTiles.length === 0) return;
+    if (allValid.length === 0) return;
 
-    // 2. Calculate count
-    const count = this._calculateBonusCount(bonusDef, validTiles.length, rng);
-    if (count === 0) return;
+    // 2. Calculate per-area target counts (Civ4 CvArea-based density)
+    const range = bonusDef.iUniqueRange || 3;
+    const ratio = range * range * 2;
+    let totalCount = 0;
 
-    // 3. If isOneArea: restrict to the area (landmass) with most valid tiles
+    // For each area with eligible tiles, calculate its share
+    const areaTargets = new Map();
+    for (const [areaId, tiles] of validByArea) {
+      // Each area gets at least 1 if it has any eligible tiles
+      const areaCount = Math.max(1, Math.floor(tiles.length / ratio));
+      areaTargets.set(areaId, areaCount);
+      totalCount += areaCount;
+    }
+
+    // Apply player modifier to total count
+    const playerMod = Math.max(0,
+      Math.floor(this.numPlayers * 1.5) + rng.nextInt(0, Math.max(0, Math.floor(this.numPlayers / 2)))
+    );
+    if (bonusDef.bonusClass === BONUS_CLASS.GENERAL ||
+        bonusDef.bonusClass === BONUS_CLASS.ANCIENT ||
+        bonusDef.bonusClass === BONUS_CLASS.MODERN) {
+      totalCount += Math.floor(playerMod / 4);
+    } else {
+      totalCount += Math.floor(playerMod / 6);
+    }
+    totalCount = Math.max(1, totalCount);
+
+    // 3. If isOneArea: restrict to the area with most valid tiles
     let targetArea = -1;
     if (bonusDef.isOneArea) {
-      targetArea = this._findBestArea(validTiles, areas);
+      targetArea = this._findBestArea(allValid, areas);
     }
 
     // 4. Placement loop
-    rng.shuffle(validTiles);
+    rng.shuffle(allValid);
     let placed = 0;
 
-    for (const tile of validTiles) {
-      if (placed >= count) break;
+    for (const tile of allValid) {
+      if (placed >= totalCount) break;
 
-      // Area restriction
+      // Area restriction for isOneArea resources
       if (targetArea >= 0) {
         const tileArea = areas[tile.y * W + tile.x];
         if (tileArea !== targetArea) continue;
@@ -628,44 +663,6 @@ export class BonusGenerator {
         placed++;
       }
     }
-  }
-
-  // ==========================================================================
-  // COUNT CALCULATION
-  // ==========================================================================
-
-  /**
-   * Calculate how many of this bonus to place using Civ4 formula.
-   *
-   * @param {Object} bonusDef - Bonus definition
-   * @param {number} numPossible - Number of valid tiles
-   * @param {SeededRandom} rng - Random number generator
-   * @returns {number} Number of this bonus to place
-   */
-  _calculateBonusCount(bonusDef, numPossible, rng) {
-    // Civ4 formula (simplified):
-    // Base count from number of possible tiles and unique range
-    const range = bonusDef.iUniqueRange || 3;
-    const baseCount = Math.max(1, Math.floor(numPossible / (range * range * 2)));
-
-    // Player modifier: more players = more resources
-    const playerMod = Math.max(0,
-      Math.floor(this.numPlayers * 1.5) + rng.nextInt(0, Math.max(0, Math.floor(this.numPlayers / 2)))
-    );
-
-    // Scale: strategic get more per player, luxury/food get base + small player bonus
-    let count;
-    if (bonusDef.bonusClass === BONUS_CLASS.GENERAL ||
-        bonusDef.bonusClass === BONUS_CLASS.ANCIENT ||
-        bonusDef.bonusClass === BONUS_CLASS.MODERN) {
-      // Strategic: base count + player scaling
-      count = Math.max(1, baseCount + Math.floor(playerMod / 4));
-    } else {
-      // Luxury/Food: base count + smaller player scaling
-      count = Math.max(1, baseCount + Math.floor(playerMod / 6));
-    }
-
-    return count;
   }
 
   // ==========================================================================

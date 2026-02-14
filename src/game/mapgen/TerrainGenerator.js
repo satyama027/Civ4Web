@@ -283,28 +283,29 @@ export class TerrainGenerator {
     this._iPlainsBottom = this.plainsFrac.getHeightFromPercent(this.iPlainsBottomPercent);
     this._iPlainsTop = this.plainsFrac.getHeightFromPercent(100);
 
-    // Pre-populate water terrain: ocean tiles adjacent to land → coast, else ocean.
-    // This mirrors Civ4's C++ engine which determines coast at the terrain layer.
-    const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+    // Pre-populate water terrain: ocean tiles within 2 tiles of land → coast, else ocean.
+    // Civ4's C++ engine assigns coast to water tiles within 2-tile radius of land.
     const terrain = new Array(W * H);
     for (let i = 0; i < W * H; i++) {
       if (plotTypes[i] === PLOT.OCEAN) {
         const x = i % W;
         const y = Math.floor(i / W);
-        let adjacentLand = false;
-        for (const [dx, dy] of dirs) {
-          let nx = x + dx, ny = y + dy;
-          if (this.wrapX) nx = ((nx % W) + W) % W;
-          else if (nx < 0 || nx >= W) continue;
-          if (this.wrapY) ny = ((ny % H) + H) % H;
-          else if (ny < 0 || ny >= H) continue;
-          const nPlot = plotTypes[ny * W + nx];
-          if (nPlot === PLOT.LAND || nPlot === PLOT.HILLS || nPlot === PLOT.PEAK) {
-            adjacentLand = true;
-            break;
+        let nearLand = false;
+        for (let dy = -2; dy <= 2 && !nearLand; dy++) {
+          for (let dx = -2; dx <= 2 && !nearLand; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            let nx = x + dx, ny = y + dy;
+            if (this.wrapX) nx = ((nx % W) + W) % W;
+            else if (nx < 0 || nx >= W) continue;
+            if (this.wrapY) ny = ((ny % H) + H) % H;
+            else if (ny < 0 || ny >= H) continue;
+            const nPlot = plotTypes[ny * W + nx];
+            if (nPlot === PLOT.LAND || nPlot === PLOT.HILLS || nPlot === PLOT.PEAK) {
+              nearLand = true;
+            }
           }
         }
-        terrain[i] = adjacentLand ? TERRAIN.COAST : TERRAIN.OCEAN;
+        terrain[i] = nearLand ? TERRAIN.COAST : TERRAIN.OCEAN;
       } else {
         terrain[i] = null;
       }

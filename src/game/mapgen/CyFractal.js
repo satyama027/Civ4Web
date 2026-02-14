@@ -138,6 +138,12 @@ export class CyFractal {
     const w = this.gridWidth;
     const h = this.gridHeight;
 
+    // Rift fractal values below a threshold carve ocean channels.
+    // Values above the threshold leave continent heights untouched,
+    // matching Civ4's continent-splitting behavior where rifts create
+    // narrow ocean channels rather than uniformly flattening terrain.
+    const riftThreshold = 128; // ~50th percentile of rift fractal
+
     for (let gy = 0; gy < h; gy++) {
       for (let gx = 0; gx < w; gx++) {
         // Map grid coords to map coords for rift lookup
@@ -147,10 +153,12 @@ export class CyFractal {
         // Get rift value (0-255)
         const riftVal = riftsFrac.getHeight(mapX, mapY);
 
-        // Modulation: low rift = low continent
-        // Multiply height by (riftVal / 255) to pull down where rift is low
-        const modulation = riftVal / 255;
-        this.grid[gy * w + gx] *= modulation;
+        if (riftVal < riftThreshold) {
+          // Scale height down proportionally — deeper rift = lower terrain
+          const riftStrength = 1.0 - (riftThreshold - riftVal) / riftThreshold;
+          this.grid[gy * w + gx] *= riftStrength;
+        }
+        // Heights where rift >= threshold are unaffected
       }
     }
 
@@ -238,20 +246,19 @@ export class CyFractal {
     // Normalize base fractal
     this._normalizeGrid();
 
-    // Blend hint data with fractal
-    // Hints bias the fractal: high hints raise heights, low hints lower them
-    const LAND_THRESHOLD = 192;
-    const HINT_STRENGTH = 0.7;
+    // Blend hint data with fractal.
+    // Hints define where continents should be — the hint map should
+    // dominate at low grains (large features) and fade at high grains (detail).
+    // Grain-dependent strength: ~0.60 at grain 1, ~0.18 at grain 5.
+    const grainFactor = Math.max(0.3, 1.0 - (grain - 1) * 0.15);
+    const HINT_STRENGTH = 0.6 * grainFactor;
 
     for (let i = 0; i < this.grid.length; i++) {
       const hint = hintGrid[i];
       const fractal = this.grid[i];
 
-      // Normalize hint to [-1, ~0.33] range centered on land threshold
-      const hintBias = (hint - LAND_THRESHOLD) / LAND_THRESHOLD;
-
-      // Blend: fractal + hint bias * strength * 255
-      this.grid[i] = fractal + hintBias * HINT_STRENGTH * 255;
+      // Blend: weighted average of fractal and hint values
+      this.grid[i] = fractal * (1 - HINT_STRENGTH) + hint * HINT_STRENGTH;
     }
 
     // Re-normalize after blending

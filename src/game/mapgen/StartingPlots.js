@@ -304,6 +304,14 @@ export class StartingPlots {
   /**
    * Score a single tile for starting plot suitability using BFC analysis.
    *
+   * Enhanced scoring inspired by Civ4's AI_updateFoundValues():
+   * - Base terrain/feature yields
+   * - Improvement planning (estimated best improvement per tile)
+   * - Fresh water bonus (+15% if river/lake adjacent)
+   * - Coastal city bonus (+10% for sea access)
+   * - Resource value weighting (strategic > luxury > food bonus)
+   * - Minimum food threshold (penalize sites with <2 high-food tiles)
+   *
    * BFC (big fat cross) is the 21 tiles within radius 2 that a city can work:
    *     X
    *    XXX
@@ -333,10 +341,9 @@ export class StartingPlots {
     let score = 0;
     let hasFreshWater = false;
     let hasCoast = false;
+    let highFoodTiles = 0;  // tiles with 3+ food potential
 
     // Score all tiles within radius 2 (BFC = big fat cross)
-    // Radius-2 cross: all (dx, dy) where |dx| + |dy| <= 2 AND max(|dx|,|dy|) <= 2
-    // This gives 21 tiles (the city's workable tiles)
     for (let dy = -2; dy <= 2; dy++) {
       for (let dx = -2; dx <= 2; dx++) {
         // BFC shape: exclude corners of the 5x5 square
@@ -355,8 +362,9 @@ export class StartingPlots {
         const nPlot = plotTypes[nIdx];
         const nFeat = features[nIdx];
         const nBonus = bonuses[nIdx];
+        const isRiver = rivers && this._tileHasRiver(rivers, nx, ny);
 
-        // Food scoring
+        // Base terrain yield scoring
         if (nTerr === TERRAIN.GRASSLAND) score += 3;
         else if (nTerr === TERRAIN.PLAINS) score += 2;
         else if (nTerr === TERRAIN.DESERT) score -= 1;
@@ -368,29 +376,53 @@ export class StartingPlots {
 
         // Feature scoring
         if (nFeat === FEATURE.FOREST) score += 1;
-        if (nFeat === FEATURE.JUNGLE) score -= 1;  // bad early game
+        if (nFeat === FEATURE.JUNGLE) score -= 1;
 
-        // Resource scoring
+        // Improvement planning: estimate best improvement yield bonus
+        if (nPlot === PLOT.LAND || nPlot === PLOT.HILLS) {
+          if (nTerr === TERRAIN.GRASSLAND && nPlot === PLOT.LAND) {
+            // Farm (+1 food) or cottage (+1 commerce); river cottage = +1 more
+            score += isRiver ? 2 : 1;
+          } else if (nTerr === TERRAIN.PLAINS && nPlot === PLOT.HILLS) {
+            // Mine (+1 production)
+            score += 1;
+          } else if (isRiver && nPlot === PLOT.LAND) {
+            // River cottage potential
+            score += 1;
+          }
+        }
+
+        // Track high-food tiles (grassland flat or grassland with bonus)
+        if (nTerr === TERRAIN.GRASSLAND && nPlot !== PLOT.PEAK) {
+          highFoodTiles++;
+        }
+
+        // Resource scoring with strategic value weighting
         if (nBonus !== null) {
-          score += 4;
-          // Extra for strategic resources
           const bonusDef = BONUS_DEFS.find(b => b.id === nBonus);
-          if (bonusDef && (bonusDef.bonusClass === 'general' ||
-              bonusDef.bonusClass === 'ancient' ||
-              bonusDef.bonusClass === 'modern')) {
-            score += 2;
+          if (bonusDef) {
+            if (bonusDef.bonusClass === 'ancient') {
+              score += 8;  // early strategic (copper, iron, horse) — critical
+            } else if (bonusDef.bonusClass === 'general' ||
+                       bonusDef.bonusClass === 'modern') {
+              score += 6;  // other strategic
+            } else if (bonusDef.bonusClass === 'luxury') {
+              score += 5;  // happiness
+            } else {
+              score += 4;  // food bonus
+            }
+          } else {
+            score += 4;
           }
         }
 
         // Fresh water (river)
-        if (rivers && this._tileHasRiver(rivers, nx, ny)) {
-          score += 3;
+        if (isRiver) {
           hasFreshWater = true;
         }
 
         // Fresh water (lake)
         if (lakes && lakes[nIdx]) {
-          score += 2;
           hasFreshWater = true;
         }
 
@@ -403,11 +435,22 @@ export class StartingPlots {
       }
     }
 
-    // Coastal access bonus
-    if (hasCoast) score += 3;
+    // Fresh water bonus: +15% for river/lake access (health + farm irrigation)
+    if (hasFreshWater) {
+      score = Math.round(score * 1.15);
+    } else {
+      score -= 8;  // significant penalty — no fresh water is very bad
+    }
 
-    // Fresh water penalty
-    if (!hasFreshWater) score -= 5;
+    // Coastal city bonus: +10% for sea routes and sea resources
+    if (hasCoast) {
+      score = Math.round(score * 1.10);
+    }
+
+    // Minimum food threshold: penalize sites with fewer than 2 high-food tiles
+    if (highFoodTiles < 2) {
+      score -= 10;
+    }
 
     return score;
   }

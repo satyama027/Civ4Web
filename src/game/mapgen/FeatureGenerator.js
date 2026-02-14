@@ -43,6 +43,37 @@ export const FEATURE = {
 };
 
 // ============================================================================
+// FEATURE ELIGIBILITY RULES (from CIV4FeatureInfos.xml)
+// ============================================================================
+
+/**
+ * Data-driven feature placement rules matching CIV4FeatureInfos.xml.
+ * Each entry specifies allowed plot types and terrain types.
+ */
+const FEATURE_RULES = {
+  [FEATURE.ICE]: {
+    allowedPlots: [PLOT.OCEAN],
+    allowedTerrains: null  // any water terrain
+  },
+  [FEATURE.JUNGLE]: {
+    allowedPlots: [PLOT.LAND, PLOT.HILLS],
+    allowedTerrains: [TERRAIN.GRASSLAND]  // Civ4 XML: only grassland
+  },
+  [FEATURE.FOREST]: {
+    allowedPlots: [PLOT.LAND, PLOT.HILLS],
+    allowedTerrains: [TERRAIN.GRASSLAND, TERRAIN.PLAINS, TERRAIN.TUNDRA]  // NOT snow, NOT desert
+  },
+  [FEATURE.OASIS]: {
+    allowedPlots: [PLOT.LAND],
+    allowedTerrains: [TERRAIN.DESERT]
+  },
+  [FEATURE.FLOODPLAINS]: {
+    allowedPlots: [PLOT.LAND],
+    allowedTerrains: [TERRAIN.DESERT]
+  }
+};
+
+// ============================================================================
 // FEATURE GENERATOR CLASS
 // ============================================================================
 
@@ -265,7 +296,7 @@ export class FeatureGenerator {
 
   /**
    * Check if a tile can have a given feature type.
-   * Centralizes the Civ4 C++ canHaveFeature() checks from XML feature rules.
+   * Data-driven table matching CIV4FeatureInfos.xml rules.
    *
    * @param {string} featureType - Feature type from FEATURE enum
    * @param {number} plotType - Plot type from PLOT enum
@@ -273,30 +304,21 @@ export class FeatureGenerator {
    * @returns {boolean}
    */
   canHaveFeature(featureType, plotType, terrainType) {
-    switch (featureType) {
-      case FEATURE.ICE:
-        return (plotType === PLOT.OCEAN);
+    const rules = FEATURE_RULES[featureType];
+    if (!rules) return false;
 
-      case FEATURE.JUNGLE:
-        if (plotType !== PLOT.LAND && plotType !== PLOT.HILLS) return false;
-        return (terrainType === TERRAIN.GRASSLAND);
+    // Plot type check: peaks never get features
+    if (plotType === PLOT.PEAK) return false;
 
-      case FEATURE.FOREST:
-        if (plotType !== PLOT.LAND && plotType !== PLOT.HILLS) return false;
-        return (terrainType === TERRAIN.GRASSLAND ||
-                terrainType === TERRAIN.PLAINS ||
-                terrainType === TERRAIN.TUNDRA ||
-                terrainType === TERRAIN.SNOW);
+    // Check allowed plot types
+    if (rules.allowedPlots && !rules.allowedPlots.includes(plotType)) return false;
 
-      case FEATURE.OASIS:
-        return (plotType === PLOT.LAND && terrainType === TERRAIN.DESERT);
-
-      case FEATURE.FLOODPLAINS:
-        return (plotType === PLOT.LAND && terrainType === TERRAIN.DESERT);
-
-      default:
-        return false;
+    // Check allowed terrains (null terrainType skips this check, e.g. for ice)
+    if (rules.allowedTerrains && terrainType !== null) {
+      if (!rules.allowedTerrains.includes(terrainType)) return false;
     }
+
+    return true;
   }
 
   // ==========================================================================
