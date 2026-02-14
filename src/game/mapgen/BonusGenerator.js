@@ -496,6 +496,8 @@ export class BonusGenerator {
    * @param {boolean} [settings.wrapX=true] - Whether map wraps horizontally
    * @param {boolean} [settings.wrapY=false] - Whether map wraps vertically
    * @param {number} [settings.numPlayers=7] - Player count (affects resource quantities)
+   * @param {Function|null} [settings.addBonusType=null] - Script override: (bonusDef, rng, plotTypes, terrain, features, bonuses, areas) => void
+   * @param {Function|null} [settings.canPlaceBonusAt=null] - Script override: (x, y, bonusDef, plotTypes, terrain, features, bonuses) => boolean
    */
   constructor(mapWidth, mapHeight, settings = {}) {
     this.iNumPlotsX = mapWidth;
@@ -510,6 +512,10 @@ export class BonusGenerator {
 
     // When true, bonus placement ignores latitude restrictions
     this.ignoreLatitude = settings.ignoreLatitude ?? false;
+
+    // Script override callbacks (CvMapScriptInterface hooks)
+    this._scriptAddBonusType = settings.addBonusType ?? null;
+    this._scriptCanPlaceBonusAt = settings.canPlaceBonusAt ?? null;
 
     // Lazy-init cache for class lookup
     this._classLookup = null;
@@ -541,7 +547,11 @@ export class BonusGenerator {
 
     // Place each bonus type in order
     for (const bonusDef of BONUS_DEFS) {
-      this._addBonusType(bonusDef, rng, plotTypes, terrain, features, result, areas);
+      if (this._scriptAddBonusType) {
+        this._scriptAddBonusType(bonusDef, rng, plotTypes, terrain, features, result, areas);
+      } else {
+        this._addBonusType(bonusDef, rng, plotTypes, terrain, features, result, areas);
+      }
     }
 
     return result;
@@ -570,7 +580,10 @@ export class BonusGenerator {
     const validTiles = [];
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
-        if (this._canPlaceBonusAt(x, y, bonusDef, plotTypes, terrain, features, bonuses, false)) {
+        const canPlace = this._scriptCanPlaceBonusAt
+          ? this._scriptCanPlaceBonusAt(x, y, bonusDef, plotTypes, terrain, features, bonuses)
+          : this._canPlaceBonusAt(x, y, bonusDef, plotTypes, terrain, features, bonuses, false);
+        if (canPlace) {
           validTiles.push({ x, y });
         }
       }
@@ -602,7 +615,10 @@ export class BonusGenerator {
       }
 
       // Full validation including spacing
-      if (this._canPlaceBonusAt(tile.x, tile.y, bonusDef, plotTypes, terrain, features, bonuses, true)) {
+      const canPlace = this._scriptCanPlaceBonusAt
+        ? this._scriptCanPlaceBonusAt(tile.x, tile.y, bonusDef, plotTypes, terrain, features, bonuses)
+        : this._canPlaceBonusAt(tile.x, tile.y, bonusDef, plotTypes, terrain, features, bonuses, true);
+      if (canPlace) {
         bonuses[tile.y * W + tile.x] = bonusDef.id;
         placed++;
       }

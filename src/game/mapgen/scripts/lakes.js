@@ -5,20 +5,16 @@
  * Oceanless planet with many small lakes. Uses an inverted fractal
  * (invert_heights=true) so what would be ocean basins become land
  * plateaus. Water percentage clamped to 7-14%.
+ *
+ * Overrides: getGridSize, generatePlotTypes, assignStartingPlots.
  */
 
 import { FractalWorld, PLOT } from '../FractalWorld.js';
 import { TerrainGenerator } from '../TerrainGenerator.js';
-import { FeatureGenerator } from '../FeatureGenerator.js';
-import { RiverGenerator } from '../RiverGenerator.js';
-import { BonusGenerator } from '../BonusGenerator.js';
-import { StartingPlots } from '../StartingPlots.js';
-import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
   resolveSeaLevelChange,
   resolveClimateSettings,
-  assignStartsBiggestArea,
-  buildMapResult
+  assignStartsBiggestArea
 } from './_helpers.js';
 
 // ============================================================================
@@ -30,6 +26,8 @@ export default {
   name: 'Lakes',
   description: 'Large continent with many interior lakes and waterways.',
   isAdvancedMap: false,
+  customOptions: [],
+
   getWrapX()  { return true; },
   getWrapY()  { return false; },
   getTopLatitude()    { return 90; },
@@ -39,7 +37,6 @@ export default {
   isBonusIgnoreLatitude() { return false; },
   startHumansOnSameTile() { return false; },
   minStartingDistanceModifier() { return -15; },
-  customOptions: [],
 
   getGridSize(worldSize) {
     const table = {
@@ -50,19 +47,14 @@ export default {
       large:    [16, 10],
       huge:     [21, 13]
     };
-    return table[worldSize] || table.standard;
+    const grid = table[worldSize] || table.standard;
+    return { width: grid[0] * 4, height: grid[1] * 4 };
   },
 
-  generate(settings, rng) {
-    const { mapSize, climate, seaLevel, numPlayers } = settings;
-    const climateConfig = resolveClimateSettings(climate);
-    const seaLevelChange = resolveSeaLevelChange(seaLevel);
+  generatePlotTypes(W, H, settings, rng) {
+    const climateConfig = resolveClimateSettings(settings.climate);
+    const seaLevelChange = resolveSeaLevelChange(settings.seaLevel);
 
-    const gridSize = this.getGridSize(mapSize);
-    const W = gridSize[0] * 4;
-    const H = gridSize[1] * 4;
-
-    // Create FractalWorld with clamped sea level [7%, 14%]
     const fw = new FractalWorld(W, H, {
       seaLevelChange,
       seaLevelMin: 7,
@@ -81,7 +73,7 @@ export default {
       polar: false
     });
 
-    const plotTypes1D = fw.generatePlotTypes(rng, {
+    const plotTypes = fw.generatePlotTypes(rng, {
       water_percent: 10,
       grain_amount: 3,
       shift_plot_types: true
@@ -89,49 +81,19 @@ export default {
 
     // Force polar ice rows: y=0 and y=max become ocean
     for (let x = 0; x < W; x++) {
-      plotTypes1D[0 * W + x] = PLOT.OCEAN;
-      plotTypes1D[(H - 1) * W + x] = PLOT.OCEAN;
+      plotTypes[0 * W + x] = PLOT.OCEAN;
+      plotTypes[(H - 1) * W + x] = PLOT.OCEAN;
     }
 
-    // Standard pipeline
-    TerrainGenerator.addCoastTiles(plotTypes1D, W, H, true, false);
+    TerrainGenerator.addCoastTiles(plotTypes, W, H, true, false);
 
-    const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false });
-    const terrain1D = tg.generateTerrain(rng, plotTypes1D);
+    return plotTypes;
+  },
 
-    const riverGen = new RiverGenerator(W, H, { wrapX: true, wrapY: false });
-    const rivers1D = riverGen.addRivers(rng, plotTypes1D, terrain1D);
-    const lakes1D = riverGen.addLakes(plotTypes1D);
-
-    const fg = new FeatureGenerator(W, H, {
-      jungleLatitude: climateConfig.jungleLatitude,
-      wrapX: true, wrapY: false
-    });
-    const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
-
-    const bg = new BonusGenerator(W, H, {
-      numPlayers, wrapX: true, wrapY: false
-    });
-    const bonuses1D = bg.addBonuses(rng, plotTypes1D, terrain1D, features1D);
-
-    // Starting plots — all on biggest area
-    const starts = assignStartsBiggestArea(
-      numPlayers, plotTypes1D, terrain1D, features1D, bonuses1D,
-      rivers1D, lakes1D, W, H, -15, true, rng
+  assignStartingPlots(W, H, plotTypes, terrain, features, bonuses, rivers, lakes, settings, rng) {
+    return assignStartsBiggestArea(
+      settings.numPlayers, plotTypes, terrain, features, bonuses,
+      rivers, lakes, W, H, -15, true, rng
     );
-
-    const sp = new StartingPlots(W, H, {
-      minStartingDistanceModifier: -15,
-      wrapX: true, wrapY: false
-    });
-    sp.normalize(starts, plotTypes1D, terrain1D, features1D,
-                 bonuses1D, rivers1D, lakes1D, rng);
-
-    // Goody huts
-    const gg = new GoodyGenerator(W, H, { wrapX: true, wrapY: false });
-    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
-
-    return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
   }
 };

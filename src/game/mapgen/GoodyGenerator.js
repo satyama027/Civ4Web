@@ -46,6 +46,7 @@ export class GoodyGenerator {
    * @param {number} [options.minSpacing=4] - Min Manhattan distance between huts
    * @param {number} [options.startExclusion=3] - Min distance from starting plots
    * @param {number} [options.tilesPerHut=25] - Avg land tiles per hut placed
+   * @param {Function|null} [options.canPlaceGoodyAt=null] - Script override: (x, y, plotType, terrain, feature, bonus) => boolean
    */
   constructor(mapWidth, mapHeight, options = {}) {
     this.iNumPlotsX = mapWidth;
@@ -55,6 +56,7 @@ export class GoodyGenerator {
     this.minSpacing = options.minSpacing ?? 4;
     this.startExclusion = options.startExclusion ?? 3;
     this.tilesPerHut = options.tilesPerHut ?? 25;
+    this._scriptCanPlaceGoodyAt = options.canPlaceGoodyAt ?? null;
   }
 
   /**
@@ -80,8 +82,10 @@ export class GoodyGenerator {
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const idx = y * W + x;
-        if (this.canPlaceGoodyAt(x, y, plotTypes[idx], terrain[idx],
-                                  features[idx], bonuses[idx])) {
+        const canPlace = this._scriptCanPlaceGoodyAt
+          ? this._scriptCanPlaceGoodyAt(x, y, plotTypes[idx], terrain[idx], features[idx], bonuses[idx])
+          : this.canPlaceGoodyAt(x, y, plotTypes[idx], terrain[idx], features[idx], bonuses[idx]);
+        if (canPlace) {
           candidates.push({ x, y, idx });
         }
       }

@@ -95,12 +95,16 @@ export class RiverGenerator {
    * @param {Object} [settings={}] - Configuration overrides
    * @param {boolean} [settings.wrapX=true] - Whether map wraps horizontally
    * @param {boolean} [settings.wrapY=false] - Whether map wraps vertically
+   * @param {Function|null} [settings.getRiverStartCardinalDirection=null] - Script override: (x, y, plotTypes) => cardinalDirection|null
+   * @param {Function|null} [settings.getRiverAltitude=null] - Script override: (x, y, plotTypes) => altitudeValue (number)
    */
   constructor(mapWidth, mapHeight, settings = {}) {
     this.iNumPlotsX = mapWidth;
     this.iNumPlotsY = mapHeight;
     this.wrapX = settings.wrapX !== false;
     this.wrapY = settings.wrapY || false;
+    this._scriptGetRiverStartCardinalDirection = settings.getRiverStartCardinalDirection ?? null;
+    this._scriptGetRiverAltitude = settings.getRiverAltitude ?? null;
   }
 
   // ==========================================================================
@@ -141,7 +145,10 @@ export class RiverGenerator {
     }
 
     // 2. Pre-compute river values (Civ4's getRiverValueAtPlot)
-    const riverValues = this._buildRiverValues(plotTypes);
+    //    If script provides getRiverAltitude, use it per-plot instead of default formula
+    const riverValues = this._scriptGetRiverAltitude
+      ? this._buildRiverValuesFromCallback(plotTypes)
+      : this._buildRiverValues(plotTypes);
 
     // 3. Count land tiles for density cap (passes 2-3)
     let totalLandTiles = 0;
@@ -194,7 +201,9 @@ export class RiverGenerator {
         if (this._findSeaWater(plotTypes, x, y, seaWaterRange)) continue;
 
         // Find start direction (lowest-value cardinal neighbor)
-        const direction = this.getRiverStartCardinalDirection(x, y, plotTypes, riverValues);
+        const direction = this._scriptGetRiverStartCardinalDirection
+          ? this._scriptGetRiverStartCardinalDirection(x, y, plotTypes)
+          : this.getRiverStartCardinalDirection(x, y, plotTypes, riverValues);
         if (direction === null) continue;
 
         // Trace river and count edges placed
@@ -328,6 +337,27 @@ export class RiverGenerator {
         iSum += Math.abs((x * 43251267 + y * 8273903) | 0) % 10;
 
         values[idx] = iSum;
+      }
+    }
+
+    return values;
+  }
+
+  /**
+   * Build river values using the script's getRiverAltitude callback.
+   * Called when a script provides a custom altitude function per-plot.
+   *
+   * @param {number[]} plotTypes - 1D plot type array
+   * @returns {number[]} 1D river value array
+   */
+  _buildRiverValuesFromCallback(plotTypes) {
+    const W = this.iNumPlotsX;
+    const H = this.iNumPlotsY;
+    const values = new Array(W * H);
+
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        values[y * W + x] = this._scriptGetRiverAltitude(x, y, plotTypes);
       }
     }
 

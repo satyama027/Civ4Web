@@ -57,6 +57,8 @@ export class StartingPlots {
    * @param {boolean} [settings.skipRemoveBadTerrain=false] - Skip terrain fix (Highlands)
    * @param {boolean} [settings.skipAddGoodTerrain=false] - Skip terrain improvement (Highlands)
    * @param {boolean} [settings.skipRemoveBadFeatures=false] - Skip jungle removal (Fantasy Realm)
+   * @param {Function|null} [settings.findStartingPlot=null] - Script override: (playerID, plotTypes, terrain, features, bonuses, rivers, lakes) => {x, y}
+   * @param {Function|null} [settings.findStartingArea=null] - Script override: (playerID, plotTypes, terrain) => areaID (number, -1 for any)
    */
   constructor(mapWidth, mapHeight, settings = {}) {
     this.iNumPlotsX = mapWidth;
@@ -73,6 +75,10 @@ export class StartingPlots {
     this.skipRemoveBadTerrain = settings.skipRemoveBadTerrain || false;
     this.skipAddGoodTerrain = settings.skipAddGoodTerrain || false;
     this.skipRemoveBadFeatures = settings.skipRemoveBadFeatures || false;
+
+    // Per-player script override callbacks (CvMapScriptInterface hooks)
+    this._scriptFindStartingPlot = settings.findStartingPlot ?? null;
+    this._scriptFindStartingArea = settings.findStartingArea ?? null;
   }
 
   // ==========================================================================
@@ -98,13 +104,29 @@ export class StartingPlots {
    * @returns {Object[]} Array of { x, y } starting locations
    */
   assignStartingPlots(numPlayers, rng, plotTypes, terrain, features, bonuses, rivers, lakes) {
+    // If script provides per-player findStartingPlot, use it
+    if (this._scriptFindStartingPlot) {
+      const starts = [];
+      for (let playerID = 0; playerID < numPlayers; playerID++) {
+        const plot = this._scriptFindStartingPlot(playerID, plotTypes, terrain, features, bonuses, rivers, lakes);
+        starts.push(plot);
+      }
+      return starts;
+    }
+
     const W = this.iNumPlotsX;
     const H = this.iNumPlotsY;
 
     // 1. Score every tile
     const scores = this._scoreAllTiles(plotTypes, terrain, features, bonuses, rivers, lakes);
 
-    // 2. Build sorted candidate list (highest score first)
+    // 2. If script provides findStartingArea, compute area IDs and constrain per-player
+    let areas = null;
+    if (this._scriptFindStartingArea) {
+      areas = this._computeAreas(plotTypes);
+    }
+
+    // 3. Build sorted candidate list (highest score first)
     const candidates = [];
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
@@ -115,11 +137,11 @@ export class StartingPlots {
     }
     candidates.sort((a, b) => b.score - a.score);
 
-    // 3. Calculate minimum starting distance
+    // 4. Calculate minimum starting distance
     const baseRange = this._startingPlotRange(numPlayers);
     let minDist = baseRange;
 
-    // 4. Multi-pass assignment with relaxing distance
+    // 5. Multi-pass assignment with relaxing distance
     const starts = [];
     const maxPasses = 50;  // Civ4 uses up to 50 relaxation passes
 
@@ -129,6 +151,16 @@ export class StartingPlots {
 
         // Already selected?
         if (starts.some(s => s.x === candidate.x && s.y === candidate.y)) continue;
+
+        // If findStartingArea is provided, check area constraint for this player
+        if (this._scriptFindStartingArea && areas) {
+          const playerID = starts.length;
+          const targetArea = this._scriptFindStartingArea(playerID, plotTypes, terrain);
+          if (targetArea >= 0) {
+            const candidateArea = areas[candidate.y * W + candidate.x];
+            if (candidateArea !== targetArea) continue;
+          }
+        }
 
         // Distance check against all existing starts
         let tooClose = false;
@@ -193,6 +225,51 @@ export class StartingPlots {
     if (this.wrapY) dy = Math.min(dy, this.iNumPlotsY - dy);
 
     return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /**
+   * Compute connected land area IDs via BFS flood fill.
+   * Ocean tiles get -1, each connected land region gets a unique ID >= 0.
+   *
+   * @param {number[]} plotTypes - 1D array of PLOT values
+   * @returns {number[]} 1D array of area IDs
+   */
+  _computeAreas(plotTypes) {
+    const W = this.iNumPlotsX;
+    const H = this.iNumPlotsY;
+    const areas = new Array(W * H).fill(-1);
+    let nextAreaId = 0;
+
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const idx = y * W + x;
+        if (areas[idx] !== -1) continue;
+        if (plotTypes[idx] === PLOT.OCEAN) continue;
+
+        const areaId = nextAreaId++;
+        const queue = [{ x, y }];
+        areas[idx] = areaId;
+
+        while (queue.length > 0) {
+          const { x: cx, y: cy } = queue.shift();
+          for (const [dx, dy] of [[0, -1], [0, 1], [1, 0], [-1, 0]]) {
+            let nx = cx + dx;
+            let ny = cy + dy;
+            if (this.wrapX) nx = ((nx % W) + W) % W;
+            else if (nx < 0 || nx >= W) continue;
+            if (this.wrapY) ny = ((ny % H) + H) % H;
+            else if (ny < 0 || ny >= H) continue;
+            const nIdx = ny * W + nx;
+            if (areas[nIdx] !== -1) continue;
+            if (plotTypes[nIdx] === PLOT.OCEAN) continue;
+            areas[nIdx] = areaId;
+            queue.push({ x: nx, y: ny });
+          }
+        }
+      }
+    }
+
+    return areas;
   }
 
   // ==========================================================================
