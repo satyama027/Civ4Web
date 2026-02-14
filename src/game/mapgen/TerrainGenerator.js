@@ -17,7 +17,7 @@
 
 import { CyFractal, FRAC_WRAP_X, FRAC_WRAP_Y, FRAC_POLAR, FRAC_CENTER_RIFT, FRAC_INVERT_HEIGHTS } from './CyFractal.js';
 import { PLOT } from './FractalWorld.js';
-import { clamp } from './utils.js';
+// clamp no longer needed — getLatitudeAtPlot now uses inline min/max matching Civ4
 
 // ============================================================================
 // TERRAIN TYPES
@@ -97,10 +97,6 @@ export class TerrainGenerator {
     const fracXExp = settings.fracXExp || 7;
     const fracYExp = settings.fracYExp || 6;
 
-    // Latitude range (default: full globe ±90)
-    this.topLatitude = settings.topLatitude ?? 90;
-    this.bottomLatitude = settings.bottomLatitude ?? -90;
-
     // Map wrapping
     this.wrapX = settings.wrapX !== false;
     this.wrapY = settings.wrapY || false;
@@ -111,21 +107,15 @@ export class TerrainGenerator {
     // Plains occupies top (iDesertPercent + iPlainsPercent)% minus desert range
     this.iPlainsBottomPercent = Math.max(0, 100 - this.iDesertPercent - this.iPlainsPercent);  // 50
 
-    // Mountain terrain override band (fixed Civ4 constants)
-    this.iMountainTopPercent = 75;
-    this.iMountainBottomPercent = 60;
-
     // Create fractal instances (initialized later in initFractals)
+    // Civ4 has 3 fractals: deserts, plains, variation (no mountain fractal)
     this.desertFrac = new CyFractal(fracXExp, fracYExp);
     this.plainsFrac = new CyFractal(fracXExp, fracYExp);
     this.variationFrac = new CyFractal(fracXExp, fracYExp);
-    this.mountainFrac = new CyFractal(fracXExp, fracYExp);
 
     // Cached height thresholds (set during generateTerrain)
     this._iDesertTopHeight = 0;
     this._iPlainsTopHeight = 0;
-    this._iMountainTopHeight = 0;
-    this._iMountainBottomHeight = 0;
   }
 
   // ==========================================================================
@@ -167,13 +157,8 @@ export class TerrainGenerator {
       W, H, this.grain_amount + 1 + grainAdjust, rng, flags
     );
 
-    // Variation fractal: same grain as plains (for latitude jitter)
+    // Variation fractal: same grain as desert (Civ4: self.grain_amount, not +1)
     this.variationFrac.fracInit(
-      W, H, this.grain_amount + 1 + grainAdjust, rng, flags
-    );
-
-    // Mountain fractal: base grain (for mountain terrain override)
-    this.mountainFrac.fracInit(
       W, H, this.grain_amount + grainAdjust, rng, flags
     );
   }
@@ -196,19 +181,20 @@ export class TerrainGenerator {
    * @returns {number} Latitude in [0.0, 1.0]
    */
   getLatitudeAtPlot(x, y) {
-    // Compute real-world latitude from topLatitude/bottomLatitude range.
-    // y=0 → topLatitude, y=max → bottomLatitude.
-    const ratio = y / Math.max(1, this.iNumPlotsY - 1);
-    const realLat = this.topLatitude + ratio * (this.bottomLatitude - this.topLatitude);
+    // Civ4: lat = abs((H/2) - y) / (H/2)
+    // 0.0 = equator (center of map), 1.0 = pole (top/bottom)
+    const halfH = this.iNumPlotsY / 2;
+    let lat = Math.abs(halfH - y) / halfH;
 
-    // Convert to 0.0 (equator) → 1.0 (pole) scale
-    let lat = Math.abs(realLat) / 90.0;
-
-    // Add variation from fractal: ±0.1 range
-    // Height=0 → +0.1, Height=128 → 0, Height=255 → -0.1
+    // Adjust latitude using variation fractal, to mix things up:
+    // Civ4: lat += (128 - self.variation.getHeight(iX, iY))/(255.0 * 5.0)
     lat += (128 - this.variationFrac.getHeight(x, y)) / (255.0 * 5.0);
 
-    return clamp(lat, 0.0, 1.0);
+    // Limit to the range [0, 1]
+    if (lat < 0) lat = 0.0;
+    if (lat > 1) lat = 1.0;
+
+    return lat;
   }
 
   // ==========================================================================
@@ -264,19 +250,6 @@ export class TerrainGenerator {
       // else: stays GRASSLAND
     }
 
-    // 5. Mountain terrain override
-    // Some hills/peaks at tundra+ latitudes get forced to snow
-    // based on a separate mountain fractal (60th-75th percentile band)
-    if (plotType === PLOT.HILLS || plotType === PLOT.PEAK) {
-      const mountainVal = this.mountainFrac.getHeight(x, y);
-      if (mountainVal >= this._iMountainBottomHeight &&
-          mountainVal <= this._iMountainTopHeight) {
-        if (lat >= this.fTundraLatitude) {
-          terrain = TERRAIN.SNOW;
-        }
-      }
-    }
-
     return terrain;
   }
 
@@ -300,8 +273,6 @@ export class TerrainGenerator {
     // Compute height thresholds from fractal percentiles
     this._iDesertTopHeight = this.desertFrac.getHeightFromPercent(this.iDesertBottomPercent);
     this._iPlainsTopHeight = this.plainsFrac.getHeightFromPercent(this.iPlainsBottomPercent);
-    this._iMountainTopHeight = this.mountainFrac.getHeightFromPercent(this.iMountainTopPercent);
-    this._iMountainBottomHeight = this.mountainFrac.getHeightFromPercent(this.iMountainBottomPercent);
 
     // Allocate terrain array
     const terrain = new Array(W * H);

@@ -53,6 +53,8 @@ export class Continent {
     this.maxradius = maxRadius;
     this.blocks = [[centerX, centerY]];
     this._rects = null; // Lazy-computed plot-space rectangles
+    // Civ4: self.done = True if numBlocks <= 1
+    this.done = (targetNumBlocks <= 1);
   }
 
   /**
@@ -246,37 +248,33 @@ export class HintedWorld extends FractalWorld {
    * @returns {boolean}
    */
   isValid(x, y, continent = null) {
-    // Normalize coordinates
-    const norm = this.normalizeBlock(x, y);
-    if (!norm.valid) return false;
-    const nx = norm.x;
-    const ny = norm.y;
+    // Check bounds (normalizeBlock handles wrapping)
+    if (!this.inBounds(x, y)) return false;
 
-    // Check max radius constraint
+    // Check max radius constraint (Civ4: uses raw coords, no wrap-aware distance)
     if (continent && continent.maxradius > 0) {
-      let dx = Math.abs(nx - continent.centerx);
-      let dy = Math.abs(ny - continent.centery);
-      // Handle wrapping for distance calculation
-      if (this.wrapX) dx = Math.min(dx, this.w - dx);
-      if (this.wrapY) dy = Math.min(dy, this.h - dy);
-      if (dx + dy > continent.maxradius) return false;
+      if (Math.abs(x - continent.centerx) + Math.abs(y - continent.centery) > continent.maxradius) {
+        return false;
+      }
     }
 
-    // Block must be unassigned
-    if (this.data[ny * this.w + nx] !== null) return false;
+    // Block must be unassigned (getValue handles normalization)
+    const val = this.getValue(x, y);
+    if (val !== null) return false;
 
-    // Check all 8 neighbors for foreign continent blocks
-    for (const [ddx, ddy] of DIRECTIONS) {
-      const neighborNorm = this.normalizeBlock(nx + ddx, ny + ddy);
-      if (!neighborNorm.valid) continue;
-
-      const neighborVal = this.data[neighborNorm.y * this.w + neighborNorm.x];
-      if (neighborVal !== null && neighborVal >= LAND_THRESHOLD) {
-        // This neighbor is land — check if it belongs to a different continent
-        const ownerKey = `${neighborNorm.x},${neighborNorm.y}`;
-        const ownerId = this._blockOwner.get(ownerKey);
-        if (ownerId !== undefined && continent && ownerId !== continent.id) {
-          return false;
+    // Check all 8 neighbors for foreign continent blocks (Civ4: dx in range(-1,2), dy in range(-1,2))
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const neighborVal = this.getValue(x + dx, y + dy);
+        if (neighborVal !== null && neighborVal >= LAND_THRESHOLD) {
+          // Check if this neighbor belongs to a different continent
+          if (!continent) return false;
+          const neighborNorm = this.normalizeBlock(x + dx, y + dy);
+          if (!neighborNorm.valid) continue;
+          const isOwn = continent.blocks.some(
+            ([bx, by]) => bx === neighborNorm.x && by === neighborNorm.y
+          );
+          if (!isOwn) return false;
         }
       }
     }
@@ -285,32 +283,39 @@ export class HintedWorld extends FractalWorld {
   }
 
   /**
-   * Find a valid block near the given position, searching at increasing Manhattan distances
+   * Check if block coordinates are in bounds (after normalization)
+   */
+  inBounds(x, y) {
+    const norm = this.normalizeBlock(x, y);
+    return norm.valid && norm.x >= 0 && norm.x < this.w && norm.y >= 0 && norm.y < this.h;
+  }
+
+  /**
+   * Find a valid block near the given position, searching at increasing Chebyshev distances.
+   * Civ4 uses recursive search from 0 to dist, with Chebyshev distance shells
+   * (max(abs(dx), abs(dy)) == d).
    *
    * @param {number} x - Starting block X
    * @param {number} y - Starting block Y
-   * @param {number} dist - Starting search distance (-1 = start at 0)
+   * @param {number} maxDist - Maximum search distance (-1 = unlimited)
    * @param {Continent|null} continent - Continent constraint (null for general)
    * @param {SeededRandom} rng - Random number generator for shuffling
    * @returns {{x: number, y: number}|null} Valid block position, or null if none found
    */
-  findValid(x, y, dist = -1, continent = null, rng = null) {
-    const startDist = dist < 0 ? 0 : dist;
-    const maxDist = Math.max(this.w, this.h);
+  findValid(x, y, maxDist = -1, continent = null, rng = null) {
+    if (maxDist < 0) {
+      maxDist = Math.max(this.w, this.h);
+    }
 
-    for (let d = startDist; d <= maxDist; d++) {
-      // Collect all blocks at Manhattan distance d
+    // Civ4 searches from distance 0 up to maxDist using Chebyshev distance
+    for (let dist = 0; dist <= maxDist; dist++) {
+      // Collect all blocks at Chebyshev distance == dist
       const candidates = [];
-
-      if (d === 0) {
-        candidates.push({ x, y });
-      } else {
-        // Walk the diamond perimeter at distance d
-        for (let i = 0; i < d; i++) {
-          candidates.push({ x: x + d - i, y: y + i });
-          candidates.push({ x: x - i, y: y + d - i });     // Corrected: was missing negative
-          candidates.push({ x: x - d + i, y: y - i });
-          candidates.push({ x: x + i, y: y - d + i });
+      for (let dx = -dist; dx <= dist; dx++) {
+        for (let dy = -dist; dy <= dist; dy++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) === dist) {
+            candidates.push({ x: x + dx, y: y + dy });
+          }
         }
       }
 
@@ -323,7 +328,7 @@ export class HintedWorld extends FractalWorld {
       for (const cand of candidates) {
         if (this.isValid(cand.x, cand.y, continent)) {
           const norm = this.normalizeBlock(cand.x, cand.y);
-          return { x: norm.x, y: norm.y };
+          if (norm.valid) return { x: norm.x, y: norm.y };
         }
       }
     }
@@ -376,56 +381,56 @@ export class HintedWorld extends FractalWorld {
   }
 
   /**
-   * Expand a continent by adding adjacent blocks
+   * Expand a continent by adding adjacent blocks.
+   * Civ4: Greedy — shuffles existing blocks and directions, takes the FIRST
+   * valid neighbor found, then recurses for additional blocks.
    *
    * @param {SeededRandom} rng - Random number generator
    * @param {Continent} continent - Continent to expand
    * @param {number} numBlocks - Number of blocks to add
+   * @returns {boolean} True if expansion succeeded
    */
   expandContinentBy(rng, continent, numBlocks) {
-    for (let n = 0; n < numBlocks; n++) {
-      // Collect all valid adjacent blocks for any existing continent block
-      const candidates = [];
-      const existingBlocks = [...continent.blocks];
-      rng.shuffle(existingBlocks);
+    // Shuffle block indices
+    const blockOrder = [...Array(continent.blocks.length).keys()];
+    rng.shuffle(blockOrder);
 
-      for (const [bx, by] of existingBlocks) {
-        const shuffledDirs = [...CARDINAL_DIRS];
-        rng.shuffle(shuffledDirs);
+    for (const blockIndex of blockOrder) {
+      const [bx, by] = continent.blocks[blockIndex];
 
-        for (const [dx, dy] of shuffledDirs) {
-          const nx = bx + dx;
-          const ny = by + dy;
-          if (this.isValid(nx, ny, continent)) {
-            const norm = this.normalizeBlock(nx, ny);
-            if (norm.valid) {
-              // Check for duplicate candidates
-              const key = `${norm.x},${norm.y}`;
-              if (!candidates.some(c => `${c.x},${c.y}` === key)) {
-                candidates.push({ x: norm.x, y: norm.y });
-              }
-            }
+      // Shuffle cardinal direction indices
+      const dirOrder = [...Array(CARDINAL_DIRS.length).keys()];
+      rng.shuffle(dirOrder);
+
+      for (const dirIndex of dirOrder) {
+        const [dx, dy] = CARDINAL_DIRS[dirIndex];
+        if (this.isValid(bx + dx, by + dy, continent)) {
+          const norm = this.normalizeBlock(bx + dx, by + dy);
+          if (!norm.valid) continue;
+
+          // Add block
+          continent.blocks.push([norm.x, norm.y]);
+          const expandValue = 208 + rng.nextInt(0, 47); // 208-255
+          this.setValue(norm.x, norm.y, expandValue);
+          this._blockOwner.set(`${norm.x},${norm.y}`, continent.id);
+          continent.invalidateRects();
+
+          if (continent.blocks.length >= continent.targetNumBlocks) {
+            continent.done = true;
+          }
+
+          if (numBlocks > 1) {
+            return this.expandContinentBy(rng, continent, numBlocks - 1);
+          } else {
+            return true;
           }
         }
       }
-
-      if (candidates.length === 0) {
-        // Try findValid from continent center as fallback
-        const fallback = this.findValid(continent.centerx, continent.centery, -1, continent, rng);
-        if (!fallback) break; // Can't expand further
-        candidates.push(fallback);
-      }
-
-      // Pick random candidate
-      const chosen = candidates[rng.nextInt(0, candidates.length - 1)];
-
-      // Set block value: expanded land
-      const expandValue = 208 + rng.nextInt(0, 47); // 208-255
-      this.setValue(chosen.x, chosen.y, expandValue);
-      this._blockOwner.set(`${chosen.x},${chosen.y}`, continent.id);
-      continent.blocks.push([chosen.x, chosen.y]);
-      continent.invalidateRects();
     }
+
+    // Could not expand
+    continent.done = true;
+    return false;
   }
 
   /**
@@ -435,47 +440,17 @@ export class HintedWorld extends FractalWorld {
    * @param {SeededRandom} rng - Random number generator
    */
   buildAllContinents(rng) {
-    let anyIncomplete = true;
-
-    while (anyIncomplete) {
-      anyIncomplete = false;
-
-      for (const continent of this.continents) {
-        if (continent.blocks.length < continent.targetNumBlocks) {
-          this.expandContinentBy(rng, continent, 1);
-          if (continent.blocks.length < continent.targetNumBlocks) {
-            anyIncomplete = true;
-          }
+    // Civ4: simple round-robin, each continent grows by 1 block per pass.
+    // expandContinentBy sets continent.done = true when it can't expand.
+    let allDone = false;
+    while (!allDone) {
+      allDone = true;
+      for (const cont of this.continents) {
+        if (!cont.done) {
+          this.expandContinentBy(rng, cont, 1);
+          allDone = false;
         }
       }
-
-      // Safety: check if we made progress, break if stuck
-      let totalBlocks = 0;
-      let totalTarget = 0;
-      for (const c of this.continents) {
-        totalBlocks += c.blocks.length;
-        totalTarget += c.targetNumBlocks;
-      }
-      if (totalBlocks >= totalTarget) break;
-
-      // Check if any continent still has room to grow
-      let canGrow = false;
-      for (const continent of this.continents) {
-        if (continent.blocks.length < continent.targetNumBlocks) {
-          // Check if there are any valid adjacent blocks
-          for (const [bx, by] of continent.blocks) {
-            for (const [dx, dy] of CARDINAL_DIRS) {
-              if (this.isValid(bx + dx, by + dy, continent)) {
-                canGrow = true;
-                break;
-              }
-            }
-            if (canGrow) break;
-          }
-        }
-        if (canGrow) break;
-      }
-      if (!canGrow) break;
     }
   }
 
@@ -484,38 +459,23 @@ export class HintedWorld extends FractalWorld {
   // ==========================================================================
 
   /**
-   * Find best X split for hint grid (same algorithm as FractalWorld.findBestSplitX
-   * but operates on the block grid)
+   * Find best X split for hint grid.
+   * Civ4: Simple counting — scores each column by counting land blocks
+   * at (x,y) and at (x-1,y). No strip weights, no +30 bonus.
    *
-   * @param {number} stripRadius - Half-width of scoring strip
-   * @returns {number} Best split column index
+   * @returns {number} Best split column index (minimum score)
    */
-  bestHintsSplitX(stripRadius) {
-    const stripSize = 2 * stripRadius;
-    if (stripSize > this.w) return 0;
-
-    const weights = this.calcWeights(stripRadius);
+  bestHintsSplitX() {
     const scores = new Array(this.w).fill(0);
-
     for (let x = 0; x < this.w; x++) {
-      // Count land blocks in this column
-      let landCount = 0;
       for (let y = 0; y < this.h; y++) {
-        const val = this.data[y * this.w + x];
-        if (val !== null && val >= LAND_THRESHOLD) landCount++;
-      }
-
-      // +30 bonus for any land (prevents splits through continents)
-      if (landCount > 0) landCount += 30;
-
-      // Distribute score across strip
-      for (let i = 0; i < stripSize; i++) {
-        const targetCol = ((x - stripRadius + i) % this.w + this.w) % this.w;
-        scores[targetCol] += landCount * weights[i];
+        const val = this.getValue(x, y);
+        if (val !== null && val >= LAND_THRESHOLD) scores[x] += 1;
+        const leftVal = this.getValue(x - 1, y);
+        if (leftVal !== null && leftVal >= LAND_THRESHOLD) scores[x] += 1;
       }
     }
-
-    // Find minimum score
+    // argmin
     let bestIdx = 0;
     let bestScore = scores[0];
     for (let i = 1; i < this.w; i++) {
@@ -524,39 +484,26 @@ export class HintedWorld extends FractalWorld {
         bestIdx = i;
       }
     }
-
     return bestIdx;
   }
 
   /**
-   * Find best Y split for hint grid
+   * Find best Y split for hint grid.
+   * Civ4: Simple counting — scores each row by counting land blocks
+   * at (x,y) and at (x,y-1). No strip weights, no +30 bonus.
    *
-   * @param {number} stripRadius - Half-width of scoring strip
-   * @returns {number} Best split row index
+   * @returns {number} Best split row index (minimum score)
    */
-  bestHintsSplitY(stripRadius) {
-    const stripSize = 2 * stripRadius;
-    if (stripSize > this.h) return 0;
-
-    const weights = this.calcWeights(stripRadius);
+  bestHintsSplitY() {
     const scores = new Array(this.h).fill(0);
-
-    for (let y = 0; y < this.h; y++) {
-      // Count land blocks in this row
-      let landCount = 0;
-      for (let x = 0; x < this.w; x++) {
-        const val = this.data[y * this.w + x];
-        if (val !== null && val >= LAND_THRESHOLD) landCount++;
-      }
-
-      if (landCount > 0) landCount += 30;
-
-      for (let i = 0; i < stripSize; i++) {
-        const targetRow = ((y - stripRadius + i) % this.h + this.h) % this.h;
-        scores[targetRow] += landCount * weights[i];
+    for (let x = 0; x < this.w; x++) {
+      for (let y = 0; y < this.h; y++) {
+        const val = this.getValue(x, y);
+        if (val !== null && val >= LAND_THRESHOLD) scores[y] += 1;
+        const belowVal = this.getValue(x, y - 1);
+        if (belowVal !== null && belowVal >= LAND_THRESHOLD) scores[y] += 1;
       }
     }
-
     let bestIdx = 0;
     let bestScore = scores[0];
     for (let i = 1; i < this.h; i++) {
@@ -565,7 +512,6 @@ export class HintedWorld extends FractalWorld {
         bestIdx = i;
       }
     }
-
     return bestIdx;
   }
 
@@ -574,10 +520,8 @@ export class HintedWorld extends FractalWorld {
    * Same concept as shiftPlotTypes() but for the block-level hints.
    */
   shiftHintsToMap() {
-    const hintStripRadius = Math.max(2, Math.floor(Math.min(this.w, this.h) / 4));
-
-    const bestShiftX = this.wrapX ? this.bestHintsSplitX(hintStripRadius) : 0;
-    const bestShiftY = this.wrapY ? this.bestHintsSplitY(hintStripRadius) : 0;
+    const bestShiftX = this.wrapX ? this.bestHintsSplitX() : 0;
+    const bestShiftY = this.wrapY ? this.bestHintsSplitY() : 0;
 
     if (bestShiftX === 0 && bestShiftY === 0) return;
 

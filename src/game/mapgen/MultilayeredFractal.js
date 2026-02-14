@@ -21,7 +21,7 @@
 
 import { CyFractal, FRAC_POLAR, FRAC_CENTER_RIFT, FRAC_INVERT_HEIGHTS, FRAC_WRAP_X, FRAC_WRAP_Y } from './CyFractal.js';
 import { PLOT } from './FractalWorld.js';
-import { clamp } from './utils.js';
+// clamp no longer needed — Civ4's MultilayeredFractal uses raw water percent
 
 // ============================================================================
 // MULTILAYEREDFRACTAL CLASS
@@ -186,29 +186,14 @@ export class MultilayeredFractal {
     const hillsFrac = new CyFractal(regionFracXExp, regionFracYExp);
     const peaksFrac = new CyFractal(regionFracXExp, regionFracYExp);
 
-    // 4. Build continent flags
-    let flags = iRegionPlotFlags;
-    if (invert_heights) flags |= FRAC_INVERT_HEIGHTS;
-
-    // 5. Init continent fractal (with or without rifts)
-    // Matching original Civ4: rift fractal is plain noise (flags=0),
-    // CENTER_RIFT goes on the continent fractal via fracInitRifts.
-    if (rift_grain >= 0) {
-      const riftsFrac = new CyFractal(regionFracXExp, regionFracYExp);
-      riftsFrac.fracInit(iRegionWidth, iRegionHeight, rift_grain, rng, 0);
-
-      if (has_center_rift) flags |= FRAC_CENTER_RIFT;
-      continentsFrac.fracInitRifts(
-        riftsFrac, has_center_rift,
-        iRegionWidth, iRegionHeight,
-        iRegionGrain, rng, flags
-      );
-    } else {
-      continentsFrac.fracInit(
-        iRegionWidth, iRegionHeight,
-        iRegionGrain, rng, flags
-      );
-    }
+    // 4. Init continent fractal
+    // Civ4's MultilayeredFractal.generatePlotsInRegion always uses plain fracInit
+    // (rift_grain, has_center_rift, invert_heights are declared in the parameter
+    // list but NOT used in the original Python implementation)
+    continentsFrac.fracInit(
+      iRegionWidth, iRegionHeight,
+      iRegionGrain, rng, iRegionPlotFlags
+    );
 
     // 6. Init hills and peaks fractals
     hillsFrac.fracInit(
@@ -220,14 +205,8 @@ export class MultilayeredFractal {
       iRegionHillsGrain + 1, rng, iRegionTerrainFlags
     );
 
-    // 7. Apply sea level adjustment
-    const adjustedWaterPercent = clamp(
-      iWaterPercent + this.seaLevelChange,
-      0, 100
-    );
-
-    // 8. Compute thresholds
-    const iWaterThreshold = continentsFrac.getHeightFromPercent(adjustedWaterPercent);
+    // 7. Compute thresholds (Civ4: uses raw iWaterPercent, no sea level adjustment)
+    const iWaterThreshold = continentsFrac.getHeightFromPercent(iWaterPercent);
 
     const iHillsBottom1 = hillsFrac.getHeightFromPercent(
       Math.max(0, this.hillGroupOneBase - this.hillGroupOneRange)
@@ -319,8 +298,8 @@ export class MultilayeredFractal {
       const distFromEdge = Math.min(i + 1, stripSize - i);
       let landWeight = distFromEdge;
 
-      // Distance from center
-      const distFromCenter = Math.abs(i - stripRadius);
+      // Distance from center (Civ4: stripRadius - distFromEdge, symmetric)
+      const distFromCenter = stripRadius - distFromEdge;
 
       // Boost weight near center
       if (distFromCenter <= 1) {
@@ -357,24 +336,24 @@ export class MultilayeredFractal {
     const scores = new Array(regionWidth).fill(0);
     const weights = this.calcWeights(stripRadius);
 
+    // Civ4: counts only PLOT_LAND, not hills/peaks
     for (let x = 0; x < regionWidth; x++) {
-      // Count land tiles in this column
-      let landCount = 0;
+      let landScore = 0;
+      let bFoundLand = false;
       for (let y = 0; y < regionHeight; y++) {
-        if (plotData[y * regionWidth + x] !== PLOT.OCEAN) {
-          landCount++;
+        if (plotData[y * regionWidth + x] === PLOT.LAND) {
+          landScore++;
+          bFoundLand = true;
         }
       }
 
-      // +30 bonus for any land (Civ4 behavior)
-      if (landCount > 0) {
-        landCount += 30;
+      if (bFoundLand) {
+        landScore += 30;
       }
 
-      // Distribute score across the strip
       for (let i = 0; i < stripSize; i++) {
-        const targetCol = ((x - stripRadius + i) % regionWidth + regionWidth) % regionWidth;
-        scores[targetCol] += landCount * weights[i];
+        const xx = ((x + i - stripRadius) % regionWidth + regionWidth) % regionWidth;
+        scores[xx] += landScore * weights[i];
       }
     }
 
@@ -410,24 +389,24 @@ export class MultilayeredFractal {
     const scores = new Array(regionHeight).fill(0);
     const weights = this.calcWeights(stripRadius);
 
+    // Civ4: counts only PLOT_LAND
     for (let y = 0; y < regionHeight; y++) {
-      // Count land tiles in this row
-      let landCount = 0;
+      let landScore = 0;
+      let bFoundLand = false;
       for (let x = 0; x < regionWidth; x++) {
-        if (plotData[y * regionWidth + x] !== PLOT.OCEAN) {
-          landCount++;
+        if (plotData[y * regionWidth + x] === PLOT.LAND) {
+          landScore++;
+          bFoundLand = true;
         }
       }
 
-      // +30 bonus for any land
-      if (landCount > 0) {
-        landCount += 30;
+      if (bFoundLand) {
+        landScore += 30;
       }
 
-      // Distribute score across the strip
       for (let i = 0; i < stripSize; i++) {
-        const targetRow = ((y - stripRadius + i) % regionHeight + regionHeight) % regionHeight;
-        scores[targetRow] += landCount * weights[i];
+        const yy = ((y + i - stripRadius) % regionHeight + regionHeight) % regionHeight;
+        scores[yy] += landScore * weights[i];
       }
     }
 
@@ -455,7 +434,12 @@ export class MultilayeredFractal {
    * @param {number} regionHeight - Region height
    * @param {number} stripRadius - Half-width of scoring strip
    */
-  shiftRegionPlots(plotData, regionWidth, regionHeight, stripRadius) {
+  shiftRegionPlots(plotData, regionWidth, regionHeight, iStrip) {
+    // Civ4: stripRadius = min(15, iStrip); stripRadius = max(3, iStrip)
+    // The min is overwritten by max, so effective result is max(3, iStrip)
+    let stripRadius = Math.min(15, iStrip);
+    stripRadius = Math.max(3, iStrip); // Note: uses iStrip, not stripRadius — matches Python
+
     const bestShiftX = this.findBestRegionSplitX(plotData, regionWidth, regionHeight, stripRadius);
     const bestShiftY = this.findBestRegionSplitY(plotData, regionWidth, regionHeight, stripRadius);
 

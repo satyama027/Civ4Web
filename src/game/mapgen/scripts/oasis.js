@@ -130,13 +130,22 @@ class OasisTerrainGenerator extends TerrainGenerator {
     super(W, H, {
       iDesertPercent: 32,
       iPlainsPercent: 18,
-      wrapX: false, wrapY: false,
-      topLatitude: 40, bottomLatitude: 0
+      wrapX: false, wrapY: false
     });
     this.iOasisGrassPercent = 9;
     this.iOasisPlainsPercent = 16;
     this.iOasisTopLatitude = 0.69;
     this.iOasisBottomLatitude = 0.30;
+  }
+
+  // Civ4 Oasis: lat = iY / float(self.iHeight) + variation jitter
+  // Linear 0.0 (south) to 1.0 (north), NOT the standard H/2 pole-equator-pole
+  getLatitudeAtPlot(x, y) {
+    let lat = y / this.iNumPlotsY;
+    lat += (128 - this.variationFrac.getHeight(x, y)) / (255.0 * 5.0);
+    if (lat < 0) lat = 0.0;
+    if (lat > 1) lat = 1.0;
+    return lat;
   }
 
   generateTerrain(rng, plotTypes) {
@@ -175,6 +184,18 @@ class OasisTerrainGenerator extends TerrainGenerator {
     if (roll < this.iOasisGrassPercent / 100) return TERRAIN.GRASSLAND;
     if (roll < (this.iOasisGrassPercent + this.iOasisPlainsPercent) / 100) return TERRAIN.PLAINS;
     return TERRAIN.DESERT;
+  }
+}
+
+// ============================================================================
+// Custom Feature Generator — Linear Latitude (south→north)
+// ============================================================================
+
+class OasisFeatureGenerator extends FeatureGenerator {
+  // Civ4 Oasis: lat = iY / float(self.iGridH)
+  // Linear 0.0 (south) to 1.0 (north), no fractal jitter
+  getLatitudeAtPlot(_x, y) {
+    return Math.max(0.0, Math.min(1.0, y / this.iNumPlotsY));
   }
 }
 
@@ -303,11 +324,10 @@ export default {
     const riverGen = new RiverGenerator(W, H, { wrapX: false, wrapY: false });
     const lakes1D = riverGen.addLakes(plotTypes1D);
 
-    // Features
-    const fg = new FeatureGenerator(W, H, {
+    // Features (Civ4 Oasis: linear latitude 0→1 south→north)
+    const fg = new OasisFeatureGenerator(W, H, {
       jungleLatitude: 0.15,
-      wrapX: false, wrapY: false,
-      topLatitude: 40, bottomLatitude: 0
+      wrapX: false, wrapY: false
     });
     const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
 

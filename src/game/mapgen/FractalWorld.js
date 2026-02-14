@@ -302,8 +302,8 @@ export class FractalWorld {
       const distFromEdge = Math.min(i + 1, stripSize - i);
       let landWeight = distFromEdge;
 
-      // Distance from center
-      const distFromCenter = Math.abs(i - stripRadius);
+      // Distance from center (Civ4: stripRadius - distFromEdge, symmetric)
+      const distFromCenter = stripRadius - distFromEdge;
 
       // Boost weight near center
       if (distFromCenter <= 1) {
@@ -342,28 +342,26 @@ export class FractalWorld {
     // Calculate weights
     const weights = this.calcWeights(stripRadius);
 
-    // Score each column
+    // Score each column (Civ4: counts only PLOT_LAND, not hills/peaks)
     for (let x = 0; x < this.iNumPlotsX; x++) {
-      // Count land tiles in this column
-      let landCount = 0;
+      let landScore = 0;
+      let bFoundLand = false;
       for (let y = 0; y < this.iNumPlotsY; y++) {
         const i = y * this.iNumPlotsX + x;
-        if (this.plotTypes[i] !== PLOT.OCEAN) {
-          landCount++;
+        if (this.plotTypes[i] === PLOT.LAND) {
+          landScore++;
+          bFoundLand = true;
         }
       }
 
-      // THE +30 BONUS: Any column with land gets +30 base score
-      // This is crucial Civ4 behavior!
-      if (landCount > 0) {
-        landCount += 30;
+      if (bFoundLand) {
+        landScore += 30;
       }
 
       // Distribute this column's score across the strip
       for (let i = 0; i < stripSize; i++) {
-        // Target column in the strip centered on this position
-        const targetCol = ((x - stripRadius + i) % this.iNumPlotsX + this.iNumPlotsX) % this.iNumPlotsX;
-        scores[targetCol] += landCount * weights[i];
+        const xx = ((x + i - stripRadius) % this.iNumPlotsX + this.iNumPlotsX) % this.iNumPlotsX;
+        scores[xx] += landScore * weights[i];
       }
     }
 
@@ -393,8 +391,8 @@ export class FractalWorld {
   findBestSplitY(stripRadius = this.stripRadius) {
     const stripSize = 2 * stripRadius;
 
-    // If strip is taller than map, no shift needed
-    if (stripSize > this.iNumPlotsY) return 0;
+    // Civ4 bug: checks iNumPlotsX, not iNumPlotsY — reproduced for accuracy
+    if (stripSize > this.iNumPlotsX) return 0;
 
     // Initialize scores for each row
     const scores = new Array(this.iNumPlotsY).fill(0);
@@ -402,26 +400,26 @@ export class FractalWorld {
     // Calculate weights
     const weights = this.calcWeights(stripRadius);
 
-    // Score each row
+    // Score each row (Civ4: counts only PLOT_LAND)
     for (let y = 0; y < this.iNumPlotsY; y++) {
-      // Count land tiles in this row
-      let landCount = 0;
+      let landScore = 0;
+      let bFoundLand = false;
       for (let x = 0; x < this.iNumPlotsX; x++) {
         const i = y * this.iNumPlotsX + x;
-        if (this.plotTypes[i] !== PLOT.OCEAN) {
-          landCount++;
+        if (this.plotTypes[i] === PLOT.LAND) {
+          landScore++;
+          bFoundLand = true;
         }
       }
 
-      // THE +30 BONUS
-      if (landCount > 0) {
-        landCount += 30;
+      if (bFoundLand) {
+        landScore += 30;
       }
 
       // Distribute this row's score across the strip
       for (let i = 0; i < stripSize; i++) {
-        const targetRow = ((y - stripRadius + i) % this.iNumPlotsY + this.iNumPlotsY) % this.iNumPlotsY;
-        scores[targetRow] += landCount * weights[i];
+        const yy = ((y + i - stripRadius) % this.iNumPlotsY + this.iNumPlotsY) % this.iNumPlotsY;
+        scores[yy] += landScore * weights[i];
       }
     }
 
@@ -446,28 +444,19 @@ export class FractalWorld {
    * @param {number} yshift - Rows to shift
    */
   shiftPlotTypesBy(xshift, yshift) {
-    if (xshift === 0 && yshift === 0) return;
+    // Civ4: only shifts when xshift > 0 or yshift > 0
+    if (xshift <= 0 && yshift <= 0) return;
 
-    const oldPlots = [...this.plotTypes];
+    const buf = [...this.plotTypes];
 
-    for (let y = 0; y < this.iNumPlotsY; y++) {
-      for (let x = 0; x < this.iNumPlotsX; x++) {
-        // Source X always wraps (Civ4: destX + xshift)
-        const srcX = ((x + xshift) % this.iNumPlotsX + this.iNumPlotsX) % this.iNumPlotsX;
-
-        // Source Y: wrap if wrapY, otherwise direct offset
-        let srcY;
-        if (this.wrapY) {
-          srcY = ((y + yshift) % this.iNumPlotsY + this.iNumPlotsY) % this.iNumPlotsY;
-        } else {
-          srcY = y + yshift;
-          if (srcY < 0 || srcY >= this.iNumPlotsY) {
-            this.plotTypes[y * this.iNumPlotsX + x] = PLOT.OCEAN;
-            continue;
-          }
-        }
-
-        this.plotTypes[y * this.iNumPlotsX + x] = oldPlots[srcY * this.iNumPlotsX + srcX];
+    for (let destY = 0; destY < this.iNumPlotsY; destY++) {
+      for (let destX = 0; destX < this.iNumPlotsX; destX++) {
+        const destI = this.iNumPlotsX * destY + destX;
+        // Civ4 always wraps both X and Y with simple modulo
+        const sourceX = ((destX + xshift) % this.iNumPlotsX + this.iNumPlotsX) % this.iNumPlotsX;
+        const sourceY = ((destY + yshift) % this.iNumPlotsY + this.iNumPlotsY) % this.iNumPlotsY;
+        const sourceI = this.iNumPlotsX * sourceY + sourceX;
+        this.plotTypes[destI] = buf[sourceI];
       }
     }
   }

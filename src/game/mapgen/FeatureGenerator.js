@@ -23,7 +23,7 @@
 import { CyFractal, FRAC_WRAP_X, FRAC_WRAP_Y, FRAC_POLAR, FRAC_CENTER_RIFT, FRAC_INVERT_HEIGHTS } from './CyFractal.js';
 import { PLOT } from './FractalWorld.js';
 import { TERRAIN } from './TerrainGenerator.js';
-import { clamp } from './utils.js';
+// clamp no longer needed — getLatitudeAtPlot uses inline min/max matching Civ4
 
 // ============================================================================
 // FEATURE TYPES
@@ -94,13 +94,8 @@ export class FeatureGenerator {
     this.jungleLatitude = settings.jungleLatitude || 0.15;
 
     // Fractal configuration
-    // CyFractal now uses full grid resolution regardless of grain.
     const fracXExp = settings.fracXExp || 7;
     const fracYExp = settings.fracYExp || 6;
-
-    // Latitude range (default: full globe ±90)
-    this.topLatitude = settings.topLatitude ?? 90;
-    this.bottomLatitude = settings.bottomLatitude ?? -90;
 
     // Map wrapping
     this.wrapX = settings.wrapX !== false;
@@ -174,14 +169,10 @@ export class FeatureGenerator {
    * @returns {number} Latitude in [0.0, 1.0]
    */
   getLatitudeAtPlot(_x, y) {
-    // Compute real-world latitude from topLatitude/bottomLatitude range.
-    // y=0 → topLatitude, y=max → bottomLatitude.
-    const ratio = y / Math.max(1, this.iNumPlotsY - 1);
-    const realLat = this.topLatitude + ratio * (this.bottomLatitude - this.topLatitude);
-
-    // Convert to 0.0 (equator) → 1.0 (pole) scale
-    const lat = Math.abs(realLat) / 90.0;
-    return clamp(lat, 0.0, 1.0);
+    // Civ4: abs((H/2) - y) / (H/2)
+    // 0.0 = equator (center of map), 1.0 = pole (top/bottom)
+    const halfH = this.iNumPlotsY / 2;
+    return Math.max(0.0, Math.min(1.0, Math.abs(halfH - y) / halfH));
   }
 
   // ==========================================================================
@@ -212,9 +203,15 @@ export class FeatureGenerator {
     this.initFractals(rng);
 
     // 2. Compute thresholds
-    this._iJungleTop = this.jungleFrac.getHeightFromPercent(this.iJunglePercent);
-    this._iJungleBottom = this.jungleFrac.getHeightFromPercent(0);
-    this._iForestLevel = this.forestFrac.getHeightFromPercent(100 - this.iForestPercent);
+    // Civ4: jungle band is CENTERED — (100-80)/2 = 10th to (100+80)/2 = 90th percentile
+    this._iJungleBottom = this.jungleFrac.getHeightFromPercent(
+      Math.floor((100 - this.iJunglePercent) / 2)
+    );
+    this._iJungleTop = this.jungleFrac.getHeightFromPercent(
+      Math.floor((100 + this.iJunglePercent) / 2)
+    );
+    // Civ4: iForestLevel = getHeightFromPercent(iForestPercent) → top 40% gets forest
+    this._iForestLevel = this.forestFrac.getHeightFromPercent(this.iForestPercent);
 
     // 3. Random ice latitude (generated once per map)
     // Civ4: map.getRandNum(100, "Feature Generator") / 500.0 → range [0, 0.198]
@@ -321,26 +318,28 @@ export class FeatureGenerator {
     // Ice only on water (ocean or coast)
     if (plot !== PLOT.OCEAN && plot !== PLOT.COAST) return;
 
-    // Edge rows: always ice (y=0 = north pole, y=max = south pole)
-    if (y === 0 || y === H - 1) {
-      features[idx] = FEATURE.ICE;
-      return;
+    // Civ4: Edge ice only for specific wrap configurations
+    if (this.wrapX && !this.wrapY) {
+      if (y === 0 || y === H - 1) {
+        features[idx] = FEATURE.ICE;
+        return;
+      }
+    } else if (this.wrapY && !this.wrapX) {
+      if (x === 0 || x === W - 1) {
+        features[idx] = FEATURE.ICE;
+        return;
+      }
     }
 
-    // Dense ice band near poles
-    // Threshold: 1.0 - randIceLatitude / 2.0
-    // Multiplier: 8x — probability rises steeply above threshold
-    const rand1 = rng.next();
-    if (rand1 < 8.0 * (lat - (1.0 - this._randIceLatitude / 2.0))) {
-      features[idx] = FEATURE.ICE;
-      return;
-    }
+    // Civ4: Single random roll (integer 0-99 / 100.0) for both checks
+    const rand = rng.nextInt(0, 99) / 100.0;
 
-    // Sparse ice band (further from poles)
-    // Threshold: 1.0 - randIceLatitude
-    // Multiplier: 4x — gentler probability curve
-    const rand2 = rng.next();
-    if (rand2 < 4.0 * (lat - (1.0 - this._randIceLatitude))) {
+    // Dense ice band: 8x multiplier
+    if (rand < 8.0 * (lat - (1.0 - (this._randIceLatitude / 2.0)))) {
+      features[idx] = FEATURE.ICE;
+    }
+    // Sparse ice band: 4x multiplier (elif — only if dense didn't trigger)
+    else if (rand < 4.0 * (lat - (1.0 - this._randIceLatitude))) {
       features[idx] = FEATURE.ICE;
     }
   }
