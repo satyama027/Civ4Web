@@ -130,7 +130,7 @@ function scoreRegion(cx, cy, radius, plotTypes1D, terrain1D, features1D,
 function findBestTileInRadius(cx, cy, radius, plotTypes1D, terrain1D,
                                features1D, bonuses1D, W, H, wrapX) {
   let bestScore = -Infinity;
-  let bestTile = { x: cx, y: cy };
+  let bestTile = null;
 
   for (let dy = -radius; dy <= radius; dy++) {
     for (let dx = -radius; dx <= radius; dx++) {
@@ -149,6 +149,54 @@ function findBestTileInRadius(cx, cy, radius, plotTypes1D, terrain1D,
       if (score > bestScore) {
         bestScore = score;
         bestTile = { x: nx, y: ny };
+      }
+    }
+  }
+
+  return bestTile;
+}
+
+/**
+ * Last-resort global scan for a land tile, matching Civ4's findStartingPlot() fallback.
+ * Finds the highest-scoring land tile not too close to already-assigned starts.
+ */
+function findBestLandTileGlobal(plotTypes1D, terrain1D, features1D,
+                                 bonuses1D, W, H, wrapX, existingStarts) {
+  let bestScore = -Infinity;
+  let bestTile = null;
+  const minDist = 4;
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = y * W + x;
+      if (plotTypes1D[idx] === PLOT.OCEAN || plotTypes1D[idx] === PLOT.PEAK) continue;
+
+      let tooClose = false;
+      for (const s of existingStarts) {
+        if (!s) continue;
+        let ddx = Math.abs(x - s.x);
+        if (wrapX && ddx > W / 2) ddx = W - ddx;
+        const ddy = Math.abs(y - s.y);
+        if (ddx + ddy < minDist) { tooClose = true; break; }
+      }
+      if (tooClose) continue;
+
+      const score = scoreCitySite(x, y, plotTypes1D, terrain1D,
+                                   features1D, bonuses1D, W, H, wrapX);
+      if (score > bestScore) {
+        bestScore = score;
+        bestTile = { x, y };
+      }
+    }
+  }
+
+  // Ultimate fallback: any land tile at all
+  if (!bestTile) {
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (plotTypes1D[y * W + x] !== PLOT.OCEAN && plotTypes1D[y * W + x] !== PLOT.PEAK) {
+          return { x, y };
+        }
       }
     }
   }
@@ -198,9 +246,23 @@ function assignStartsArchipelago(numPlayers, regions, plotTypes1D, terrain1D,
       region = scored[p % scored.length];
     }
 
-    const best = findBestTileInRadius(region.x, region.y, radius,
-                                       plotTypes1D, terrain1D, features1D,
-                                       bonuses1D, W, H, wrapX);
+    let best = findBestTileInRadius(region.x, region.y, radius,
+                                     plotTypes1D, terrain1D, features1D,
+                                     bonuses1D, W, H, wrapX);
+
+    // If no land tile in radius, try wider search (double radius)
+    if (!best) {
+      best = findBestTileInRadius(region.x, region.y, radius * 2,
+                                   plotTypes1D, terrain1D, features1D,
+                                   bonuses1D, W, H, wrapX);
+    }
+
+    // If still no land tile, scan entire map for best unclaimed land tile
+    if (!best) {
+      best = findBestLandTileGlobal(plotTypes1D, terrain1D, features1D,
+                                     bonuses1D, W, H, wrapX, starts);
+    }
+
     starts[playerOrder[p]] = best;
   }
 
