@@ -311,6 +311,24 @@ export function scoreCitySite(cx, cy, plotTypes1D, terrain1D, features1D,
 }
 
 // ============================================================================
+// River Detection Helper
+// ============================================================================
+
+/**
+ * Check whether a tile touches any river edge (own edges + neighbor edges).
+ */
+function tileHasRiver(rivers, x, y, W, H) {
+  const r = rivers[y][x];
+  if (r.isNOfRiver || r.isWOfRiver) return true;
+  // East neighbor's west edge
+  const ex = (x + 1) % W;
+  if (rivers[y][ex].isWOfRiver) return true;
+  // South neighbor's north edge
+  if (y + 1 < H && rivers[y + 1][x].isNOfRiver) return true;
+  return false;
+}
+
+// ============================================================================
 // Map Result Builder
 // ============================================================================
 
@@ -352,13 +370,27 @@ export function buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1
     getTile(x, y) {
       const wx = ((x % W) + W) % W;
       if (y < 0 || y >= H) return null;
+      const plot = this.plots[y][wx];
+      const river = this.rivers[y][wx];
       return {
-        plot: this.plots[y][wx],
+        x: wx, y,
+        plot,
         terrain: this.terrain[y][wx],
         feature: this.features[y][wx],
         resource: this.resources[y][wx],
-        river: this.rivers[y][wx],
-        isLake: this.lakes[y][wx]
+        river,
+        isWater: plot === PLOT.OCEAN,
+        isLand: plot >= PLOT.LAND,
+        isCoast: this.terrain[y][wx] === TERRAIN.COAST,
+        isHills: plot === PLOT.HILLS,
+        isPeak: plot === PLOT.PEAK,
+        hasRiver: tileHasRiver(this.rivers, wx, y, W, H),
+        isLake: this.lakes[y][wx],
+        hasGoodyHut: this.goodies ? this.goodies[y][wx] : false,
+        isNOfRiver: river.isNOfRiver,
+        isWOfRiver: river.isWOfRiver,
+        riverFlowN: river.riverNSDirection,
+        riverFlowW: river.riverWEDirection
       };
     },
     getElevation(x, y) {
