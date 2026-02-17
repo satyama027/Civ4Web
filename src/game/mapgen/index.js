@@ -25,8 +25,7 @@ import { GoodyGenerator } from './GoodyGenerator.js';
 import {
   getDefaultDimensions,
   resolveSeaLevelChange,
-  resolveClimateSettings,
-  buildMapResult
+  resolveClimateSettings
 } from './scripts/_helpers.js';
 
 // --- Script imports ---
@@ -227,7 +226,7 @@ function runNormalization(script, starts, plotTypes, terrain, features, bonuses,
   callOrDefault('normalizeRemovePeaks', starts, plotTypes);
   callOrDefault('normalizeAddLakes', starts, plotTypes, terrain, rivers, lakes);
   callOrDefault('normalizeRemoveBadFeatures', starts, features);
-  callOrDefault('normalizeRemoveBadTerrain', starts, plotTypes, terrain);
+  callOrDefault('normalizeRemoveBadTerrain', starts, plotTypes, terrain, features);
   callOrDefault('normalizeAddFoodBonuses', starts, plotTypes, terrain, features, bonuses, rng);
   callOrDefault('normalizeAddGoodTerrain', starts, plotTypes, terrain);
   callOrDefault('normalizeAddExtras', starts, plotTypes, terrain, features, bonuses, rivers, rng);
@@ -449,11 +448,6 @@ export function generateMap(settings) {
     customOptions: resolvedCustomOptions
   };
 
-  // --- Backward compatibility: legacy scripts with monolithic generate() ---
-  if (script.generate && !script.generatePlotTypes && !script.generateRandomMap) {
-    return _runLegacyPipeline(script, fullSettings, rng, seed);
-  }
-
   // ========================================================================
   // HOOK-BASED PIPELINE (mirrors CvMapScriptInterface.py order)
   // ========================================================================
@@ -547,7 +541,10 @@ export function generateMap(settings) {
                                   fullSettings, rng, distMod, wrapX, wrapY, startCallbacks);
 
   // Phase 11: Normalization (9 individual hooks)
-  runNormalization(script, starts, plotTypes, terrain, features, bonuses, rivers, lakes, rng, W, H, wrapX, wrapY);
+  const shouldSkipNorm = script.skipNormalization?.() ?? false;
+  if (!shouldSkipNorm) {
+    runNormalization(script, starts, plotTypes, terrain, features, bonuses, rivers, lakes, rng, W, H, wrapX, wrapY);
+  }
 
   // Phase 12: addGoodies (after starting plots + normalization, per Civ4 order)
   const goodyCallbacks = {
@@ -581,106 +578,6 @@ export function generateMap(settings) {
     seed,
     humansOnSameTile
   );
-}
-
-// ============================================================================
-// LEGACY PIPELINE (backward compatibility for scripts with monolithic generate())
-// ============================================================================
-
-function _runLegacyPipeline(script, fullSettings, rng, seed) {
-  // Lifecycle: beforeInit
-  if (script.beforeInit) {
-    script.beforeInit(fullSettings, rng);
-  }
-
-  // Lifecycle: beforeGeneration
-  if (script.beforeGeneration) {
-    script.beforeGeneration(fullSettings, rng);
-  }
-
-  // Run the script's monolithic pipeline
-  const scriptResult = script.generate(fullSettings, rng);
-
-  // Lifecycle: afterGeneration
-  if (script.afterGeneration) {
-    script.afterGeneration(scriptResult, fullSettings, rng);
-  }
-
-  // Generate render heightmap
-  const heightmap = generateHeightmap(
-    scriptResult.width,
-    scriptResult.height,
-    rng
-  );
-
-  console.log('Map generation complete! (legacy pipeline)');
-
-  // The legacy buildMapResult returns an object with 2D arrays + getTile/getElevation.
-  // We need to wrap it in the standard output format.
-  const { width: W, height: H } = scriptResult;
-  const humansOnSameTile = script.startHumansOnSameTile?.() ?? false;
-
-  // Legacy scripts return via buildMapResult which already has 2D arrays
-  const legacyResult = scriptResult;
-
-  return {
-    width: W,
-    height: H,
-    seed,
-    settings: {
-      mapType: fullSettings.mapType,
-      mapSize: fullSettings.mapSize,
-      climate: fullSettings.climate,
-      seaLevel: fullSettings.seaLevel,
-      numPlayers: fullSettings.numPlayers
-    },
-    startHumansOnSameTile: humansOnSameTile,
-
-    heightmap,
-    plots: legacyResult.plots,
-    terrain: legacyResult.terrain,
-    features: legacyResult.features,
-    resources: legacyResult.resources,
-    rivers: legacyResult.rivers,
-    lakes: legacyResult.lakes,
-    goodies: legacyResult.goodies,
-    startingLocations: legacyResult.startingLocations,
-
-    getTile: legacyResult.getTile?.bind(legacyResult) ?? function(x, y) {
-      const wx = ((x % W) + W) % W;
-      if (y < 0 || y >= H) return null;
-      const plot = this.plots[y][wx];
-      const river = this.rivers[y][wx];
-      return {
-        x: wx, y, plot,
-        terrain: this.terrain[y][wx],
-        feature: this.features[y][wx],
-        resource: this.resources[y][wx],
-        river,
-        isWater: plot === PLOT.OCEAN,
-        isLand: plot >= PLOT.LAND,
-        isCoast: this.terrain[y][wx] === TERRAIN.COAST,
-        isHills: plot === PLOT.HILLS,
-        isPeak: plot === PLOT.PEAK,
-        hasRiver: tileHasRiver(this.rivers, wx, y, W, H),
-        isLake: this.lakes ? this.lakes[y][wx] : false,
-        hasGoodyHut: this.goodies ? this.goodies[y][wx] : false,
-        isNOfRiver: river.isNOfRiver,
-        isWOfRiver: river.isWOfRiver,
-        riverFlowN: river.riverNSDirection,
-        riverFlowW: river.riverWEDirection
-      };
-    },
-
-    getElevation: legacyResult.getElevation?.bind(legacyResult) ?? function(x, y) {
-      const wx = ((x % W) + W) % W;
-      if (y < 0 || y >= H) return null;
-      const plot = this.plots[y][wx];
-      if (plot === PLOT.PEAK) return ELEVATION.PEAKS;
-      if (plot === PLOT.HILLS) return ELEVATION.HILLS;
-      return ELEVATION.FLAT;
-    }
-  };
 }
 
 // ============================================================================

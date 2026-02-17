@@ -19,17 +19,11 @@ import { PLOT } from '../FractalWorld.js';
 import { HintedWorld } from '../HintedWorld.js';
 import { MultilayeredFractal } from '../MultilayeredFractal.js';
 import { TerrainGenerator } from '../TerrainGenerator.js';
-import { FeatureGenerator } from '../FeatureGenerator.js';
-import { RiverGenerator } from '../RiverGenerator.js';
-import { BonusGenerator } from '../BonusGenerator.js';
 import { StartingPlots } from '../StartingPlots.js';
-import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
-  resolveGridSize,
   resolveSeaLevelChange,
   resolveClimateSettings,
-  findBiggestLandArea,
-  buildMapResult
+  findBiggestLandArea
 } from './_helpers.js';
 
 // ============================================================================
@@ -651,95 +645,50 @@ export default {
     }
   ],
 
-  // Legacy single-option support
-  customOption: {
-    name: 'Shoreline',
-    values: ['Random', 'Natural', 'Pressed', 'Solid'],
-    default: 0
-  },
-
   getGridSize(worldSize) {
-    return GRID_TABLE[worldSize] || GRID_TABLE.standard;
+    const grid = GRID_TABLE[worldSize] || GRID_TABLE.standard;
+    return { width: grid[0] * 4, height: grid[1] * 4 };
   },
 
-  generate(settings, rng) {
-    const { mapSize, climate, seaLevel, numPlayers } = settings;
-    const climateConfig = resolveClimateSettings(climate);
-    const seaLevelChange = resolveSeaLevelChange(seaLevel);
-
-    const gridSize = this.getGridSize(mapSize);
-    const { width: W, height: H } = resolveGridSize(mapSize, { [mapSize]: gridSize });
-
+  beforeInit(settings, rng) {
     const optionIndex = settings.customOption != null ? settings.customOption : 0;
-    const pangaeaType = resolvePangaeaType(optionIndex, rng);
+    this._pangaeaType = resolvePangaeaType(optionIndex, rng);
+  },
 
-    // Generate plot types based on pangaea type
-    let plotTypes1D;
-    switch (pangaeaType) {
+  generatePlotTypes(W, H, settings, rng) {
+    const climateConfig = resolveClimateSettings(settings.climate);
+    const seaLevelChange = resolveSeaLevelChange(settings.seaLevel);
+    let plotTypes;
+    switch (this._pangaeaType) {
       case 'natural':
-        plotTypes1D = generateMultilayered(W, H, 0, seaLevelChange, climateConfig, mapSize, rng);
+        plotTypes = generateMultilayered(W, H, 0, seaLevelChange, climateConfig, settings.mapSize, rng);
         break;
       case 'pressed_equatorial':
-        plotTypes1D = generateMultilayered(W, H, 1, seaLevelChange, climateConfig, mapSize, rng);
+        plotTypes = generateMultilayered(W, H, 1, seaLevelChange, climateConfig, settings.mapSize, rng);
         break;
       case 'pressed_polar':
-        plotTypes1D = generateMultilayered(W, H, 2, seaLevelChange, climateConfig, mapSize, rng);
+        plotTypes = generateMultilayered(W, H, 2, seaLevelChange, climateConfig, settings.mapSize, rng);
         break;
       case 'solid_soren':
-        plotTypes1D = generateSorensHinted(W, H, seaLevelChange, climateConfig, rng);
+        plotTypes = generateSorensHinted(W, H, seaLevelChange, climateConfig, rng);
         break;
       case 'solid_andy':
-        plotTypes1D = generateAndysHinted(W, H, seaLevelChange, climateConfig, rng);
+        plotTypes = generateAndysHinted(W, H, seaLevelChange, climateConfig, rng);
         break;
     }
+    applyCohesionRepair(plotTypes, null, W, H, this._pangaeaType, seaLevelChange, climateConfig, rng);
+    return plotTypes;
+  },
 
-    // Terrain (default generator)
-    const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false, mapSize });
-    const terrain1D = tg.generateTerrain(rng, plotTypes1D);
+  generateTerrain(W, H, plotTypes, settings, rng) {
+    const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false, mapSize: settings.mapSize });
+    return tg.generateTerrain(rng, plotTypes);
+  },
 
-    // Cohesion repair
-    applyCohesionRepair(plotTypes1D, terrain1D, W, H, pangaeaType,
-                         seaLevelChange, climateConfig, rng);
-
-    // Rivers
-    const riverGen = new RiverGenerator(W, H, { wrapX: true, wrapY: false });
-    const rivers1D = riverGen.addRivers(rng, plotTypes1D, terrain1D);
-    const lakes1D = riverGen.addLakes(plotTypes1D);
-
-    // Features (default generator)
-    const fg = new FeatureGenerator(W, H, {
-      jungleLatitude: climateConfig.iJungleLatitude,
-      randIceLatitude: climateConfig.fRandIceLatitude,
-      mapSize,
-      wrapX: true, wrapY: false
-    });
-    const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
-
-    // Bonuses
-    const bg = new BonusGenerator(W, H, {
-      numPlayers, wrapX: true, wrapY: false
-    });
-    const bonuses1D = bg.addBonuses(rng, plotTypes1D, terrain1D, features1D);
-
-    // Starting plots — biggest-area constraint
-    const starts = assignStartsPangaea(
-      numPlayers, plotTypes1D, terrain1D, features1D, bonuses1D,
-      rivers1D, lakes1D, W, H, rng
+  assignStartingPlots(W, H, plotTypes, terrain, features, bonuses, rivers, lakes, settings, rng) {
+    return assignStartsPangaea(
+      settings.numPlayers, plotTypes, terrain, features, bonuses,
+      rivers, lakes, W, H, rng
     );
-
-    // Normalize (all passes enabled)
-    const sp = new StartingPlots(W, H, {
-      minStartingDistanceModifier: 0,
-      wrapX: true, wrapY: false
-    });
-    sp.normalize(starts, plotTypes1D, terrain1D, features1D,
-                 bonuses1D, rivers1D, lakes1D, rng);
-
-    // Goody huts
-    const gg = new GoodyGenerator(W, H, { wrapX: true, wrapY: false });
-    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
-
-    return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
   }
 };

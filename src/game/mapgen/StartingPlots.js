@@ -497,7 +497,7 @@ export class StartingPlots {
 
     // Pass 6: Fix bad terrain near start
     if (!this.skipRemoveBadTerrain) {
-      this.normalizeRemoveBadTerrain(starts, plotTypes, terrain);
+      this.normalizeRemoveBadTerrain(starts, plotTypes, terrain, features);
     }
 
     // Pass 7: Ensure food resources near start
@@ -651,7 +651,7 @@ export class StartingPlots {
    * @param {number[]} plotTypes - 1D array of PLOT values
    * @param {string[]} terrain - 1D array of TERRAIN values (mutated)
    */
-  normalizeRemoveBadTerrain(starts, plotTypes, terrain) {
+  normalizeRemoveBadTerrain(starts, plotTypes, terrain, features) {
     const W = this.iNumPlotsX;
 
     for (const start of starts) {
@@ -661,8 +661,12 @@ export class StartingPlots {
         if (plot === PLOT.OCEAN) continue;
 
         const terr = terrain[idx];
+        // Only change terrain if no feature or the feature is valid on the new terrain
+        // (matches Civ4 CvGame.cpp:1388 — skip tiles with desert-only features like oasis/floodplains)
         if (terr === TERRAIN.DESERT) {
-          terrain[idx] = TERRAIN.PLAINS;
+          if (features[idx] !== FEATURE.OASIS && features[idx] !== FEATURE.FLOODPLAINS) {
+            terrain[idx] = TERRAIN.PLAINS;
+          }
         } else if (terr === TERRAIN.SNOW) {
           terrain[idx] = TERRAIN.PLAINS;
         } else if (terr === TERRAIN.TUNDRA) {
@@ -738,7 +742,9 @@ export class StartingPlots {
   /**
    * Pass 8: Improve terrain quality near start.
    *
-   * Ensures at least 3 grassland tiles and at least 1 hill for production.
+   * Ensures at least 3 grassland tiles near each starting location.
+   * Matches Civ4 BTS normalizeAddGoodTerrain() which only upgrades terrain
+   * types — hills are handled separately in normalizeAddExtras().
    *
    * @param {Object[]} starts - Starting locations
    * @param {number[]} plotTypes - 1D array of PLOT values (mutated)
@@ -749,13 +755,11 @@ export class StartingPlots {
 
     for (const start of starts) {
       let grassCount = 0;
-      let hillsCount = 0;
 
-      // Count existing good terrain in radius 2
+      // Count existing grassland in radius 2
       for (const [nx, ny] of this._getTilesInRadius(start.x, start.y, 2)) {
         const idx = ny * W + nx;
         if (terrain[idx] === TERRAIN.GRASSLAND) grassCount++;
-        if (plotTypes[idx] === PLOT.HILLS) hillsCount++;
       }
 
       // If too few grassland, convert some plains within radius 1
@@ -768,41 +772,26 @@ export class StartingPlots {
           }
         }
       }
-
-      // If no hills, convert one flat land within radius 2 to hills
-      if (hillsCount === 0) {
-        for (const [nx, ny] of this._getTilesInRadius(start.x, start.y, 2)) {
-          const idx = ny * W + nx;
-          if (plotTypes[idx] === PLOT.LAND &&
-              terrain[idx] !== TERRAIN.DESERT &&
-              !(nx === start.x && ny === start.y)) {
-            plotTypes[idx] = PLOT.HILLS;
-            break;
-          }
-        }
-      }
     }
   }
 
   /**
-   * Pass 9: Ensure strategic resources exist near each starting location.
+   * Pass 9: Ensure strategic resources and hills near each starting location.
    *
-   * Port of Civ4 Warlords BonusBalancer.normalizeAddExtras().
-   * Uses 4 relaxation passes with progressively looser placement constraints:
-   *   Pass 0: Strict (respect uniqueRange, oneArea, adjacency)
-   *   Pass 1: Ignore uniqueRange
-   *   Pass 2: Ignore uniqueRange + oneArea
-   *   Pass 3: Ignore all constraints
+   * Port of Civ4 BTS CvPlayer::normalizeAddExtras().
+   * 1. Strategic resource balancing (BonusBalancer) with 4 relaxation passes.
+   * 2. Hills guarantee: ensures at least 3 hills within BFC (radius 2) for
+   *    each start, matching the final step of the original function.
    *
    * @param {Object[]} starts - Starting locations [{x, y}]
-   * @param {number[]} plotTypes - 1D array of PLOT values
+   * @param {number[]} plotTypes - 1D array of PLOT values (mutated)
    * @param {string[]} terrain - 1D array of TERRAIN values
    * @param {string[]} features - 1D array of FEATURE values
    * @param {string[]} bonuses - 1D array of bonus IDs (mutated)
    * @param {Object[]} _rivers - 1D array of river objects (unused)
-   * @param {import('./utils.js').SeededRandom} _rng - Seeded RNG (unused)
+   * @param {import('./utils.js').SeededRandom} rng - Seeded RNG
    */
-  normalizeAddExtras(starts, plotTypes, terrain, features, bonuses, _rivers, _rng) {
+  normalizeAddExtras(starts, plotTypes, terrain, features, bonuses, _rivers, rng) {
     const W = this.iNumPlotsX;
     const H = this.iNumPlotsY;
     const RADIUS = 5;
@@ -859,6 +848,47 @@ export class StartingPlots {
             break; // next resource
           }
         }
+      }
+    }
+
+    // --- Hills guarantee (Civ4 BTS normalizeAddExtras final step) ---
+    // Ensure at least 3 hills within the BFC (radius 2) of each start.
+    const MIN_HILLS = 3;
+    for (const start of starts) {
+      let hillsCount = 0;
+      const bfcTiles = this._getTilesInRadius(start.x, start.y, 2);
+
+      for (const [nx, ny] of bfcTiles) {
+        if (plotTypes[ny * W + nx] === PLOT.HILLS) hillsCount++;
+      }
+
+      if (hillsCount >= MIN_HILLS) continue;
+
+      // Shuffle BFC tiles randomly (Fisher-Yates)
+      const shuffled = [...bfcTiles];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(rng.next() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+
+      for (const [nx, ny] of shuffled) {
+        if (hillsCount >= MIN_HILLS) break;
+        const idx = ny * W + nx;
+
+        // Skip: water, already hills/peak
+        if (plotTypes[idx] !== PLOT.LAND) continue;
+
+        // Skip if feature requires flatlands (floodplains)
+        if (features[idx] === FEATURE.FLOODPLAINS) continue;
+
+        // Skip if bonus can't be on hills
+        if (bonuses[idx]) {
+          const bonusDef = BONUS_DEFS.find(b => b.id === bonuses[idx]);
+          if (bonusDef && bonusDef.requiresFlatlands) continue;
+        }
+
+        plotTypes[idx] = PLOT.HILLS;
+        hillsCount++;
       }
     }
   }

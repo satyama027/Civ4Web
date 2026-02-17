@@ -10,19 +10,11 @@
 import { clamp } from '../utils.js';
 import { FractalWorld, PLOT } from '../FractalWorld.js';
 import { TERRAIN } from '../TerrainGenerator.js';
-import { TerrainGenerator } from '../TerrainGenerator.js';
-import { FeatureGenerator } from '../FeatureGenerator.js';
-import { RiverGenerator } from '../RiverGenerator.js';
-import { BonusGenerator } from '../BonusGenerator.js';
-import { StartingPlots } from '../StartingPlots.js';
-import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
-  getDefaultDimensions,
   resolveSeaLevelChange,
   resolveClimateSettings,
   removeCoastalPeaks,
-  scoreCitySite,
-  buildMapResult
+  scoreCitySite
 } from './_helpers.js';
 
 // ============================================================================
@@ -302,31 +294,17 @@ export default {
     }
   ],
 
-  // Legacy single-option support
-  customOption: {
-    name: 'Landmass Type',
-    values: ['Snaky Continents', 'Archipelago', 'Tiny Islands'],
-    default: 1
-  },
-
   getGridSize() { return null; },
 
-  generate(settings, rng) {
-    const { mapSize, climate, seaLevel, numPlayers } = settings;
-    const climateConfig = resolveClimateSettings(climate);
-    const seaLevelChange = resolveSeaLevelChange(seaLevel);
-
-    // 1. Resolve map dimensions (default grid size)
-    const { width: W, height: H } = getDefaultDimensions(mapSize);
-
-    // 2. Resolve custom option
+  generatePlotTypes(W, H, settings, rng) {
+    const climateConfig = resolveClimateSettings(settings.climate);
+    const seaLevelChange = resolveSeaLevelChange(settings.seaLevel);
     const optionIndex = settings.customOption != null ? settings.customOption : 1;
     const grainMap = [3, 4, 5];
     const continent_grain = grainMap[optionIndex] || 4;
     const extraPeaks = 15 * (1 + optionIndex);
     const adjustedPeakPercent = clamp(climateConfig.iPeakPercent + extraPeaks, 0, 100);
 
-    // 3. Generate plot types
     const fw = new FractalWorld(W, H, {
       seaLevelChange,
       hillGroupOneRange: climateConfig.iHillRange,
@@ -344,64 +322,27 @@ export default {
       polar: true
     });
 
-    const plotTypes1D = fw.generatePlotTypes(rng, {
+    const plotTypes = fw.generatePlotTypes(rng, {
       water_percent: 78,
       grain_amount: 3,
       shift_plot_types: true
     });
 
-    // 4. Remove coastal peaks (Archipelago-specific)
-    removeCoastalPeaks(plotTypes1D, W, H, true);
+    removeCoastalPeaks(plotTypes, W, H, true);
+    return plotTypes;
+  },
 
-    // 6. Generate terrain
-    const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false, mapSize });
-    const terrain1D = tg.generateTerrain(rng, plotTypes1D);
-
-    // 7. Add rivers + lakes
-    const riverGen = new RiverGenerator(W, H, { wrapX: true, wrapY: false });
-    const rivers1D = riverGen.addRivers(rng, plotTypes1D, terrain1D);
-    const lakes1D = riverGen.addLakes(plotTypes1D);
-
-    // 8. Add features
-    const fg = new FeatureGenerator(W, H, {
-      jungleLatitude: climateConfig.iJungleLatitude,
-      randIceLatitude: climateConfig.fRandIceLatitude,
-      mapSize,
-      wrapX: true, wrapY: false
-    });
-    const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
-
-    // 9. Add bonuses
-    const bg = new BonusGenerator(W, H, {
-      numPlayers, wrapX: true, wrapY: false
-    });
-    const bonuses1D = bg.addBonuses(rng, plotTypes1D, terrain1D, features1D);
-
-    // 10. Custom regional starting plot assignment
+  assignStartingPlots(W, H, plotTypes, terrain, features, bonuses, rivers, lakes, settings, rng) {
+    const optionIndex = settings.customOption != null ? settings.customOption : 1;
     const regionTableKey = optionIndex === 2 ? 'tinyIslands'
-                         : optionIndex === 0 ? 'snaky'
-                         : 'archipelago';
+                         : optionIndex === 0 ? 'snaky' : 'archipelago';
     const regionTable = REGION_COUNTS[regionTableKey];
-    const numRegions = regionTable[Math.min(numPlayers, regionTable.length - 1)];
+    const numRegions = regionTable[Math.min(settings.numPlayers, regionTable.length - 1)];
     const regions = placeRegions(numRegions, W, H, rng);
-    const starts = assignStartsArchipelago(
-      numPlayers, regions, plotTypes1D, terrain1D, features1D, bonuses1D, W, H, rng
+    return assignStartsArchipelago(
+      settings.numPlayers, regions, plotTypes, terrain, features, bonuses, W, H, rng
     );
+  },
 
-    // 11. Normalize with skipRemovePeaks
-    const sp = new StartingPlots(W, H, {
-      minStartingDistanceModifier: 0,
-      skipRemovePeaks: true,
-      wrapX: true, wrapY: false
-    });
-    sp.normalize(starts, plotTypes1D, terrain1D, features1D, bonuses1D, rivers1D, lakes1D, rng);
-
-    // 12. Add goody huts
-    const gg = new GoodyGenerator(W, H, { wrapX: true, wrapY: false });
-    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
-
-    // 13. Convert to 2D and return
-    return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
-  }
+  normalizeRemovePeaks() { /* no-op: archipelago keeps peaks near starts */ }
 };

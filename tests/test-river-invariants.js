@@ -16,7 +16,6 @@ for (const mapType of ALL_MAP_TYPES) {
   let directionErrors = 0;
   let nofRiverConsistency = 0;
   let wofRiverConsistency = 0;
-  let peakRivers = 0;
   // N-of-river edge is horizontal → flow direction is E or W
   // W-of-river edge is vertical → flow direction is N or S
   let validFlowN = new Set([null, undefined, 'E', 'W']);
@@ -35,8 +34,6 @@ for (const mapType of ALL_MAP_TYPES) {
     if (!validFlowN.has(tile.riverFlowN)) directionErrors++;
     if (!validFlowW.has(tile.riverFlowW)) directionErrors++;
 
-    // No rivers on peak tiles (Civ4 rule)
-    if (tile.isPeak && (tile.isNOfRiver || tile.isWOfRiver)) peakRivers++;
   });
 
   assert(directionErrors === 0,
@@ -45,8 +42,6 @@ for (const mapType of ALL_MAP_TYPES) {
     `${mapType}: isNOfRiver consistent with riverFlowN (${nofRiverConsistency} errors)`);
   assert(wofRiverConsistency === 0,
     `${mapType}: isWOfRiver consistent with riverFlowW (${wofRiverConsistency} errors)`);
-  assert(peakRivers === 0,
-    `${mapType}: no rivers on peaks (${peakRivers})`);
 }
 
 reportResults('test-river-invariants');

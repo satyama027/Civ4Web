@@ -20,12 +20,6 @@ import { TerrainGenerator, TERRAIN } from '../TerrainGenerator.js';
 import { FeatureGenerator } from '../FeatureGenerator.js';
 import { RiverGenerator } from '../RiverGenerator.js';
 import { BonusGenerator } from '../BonusGenerator.js';
-import { StartingPlots } from '../StartingPlots.js';
-import { GoodyGenerator } from '../GoodyGenerator.js';
-import {
-  getDefaultDimensions,
-  buildMapResult
-} from './_helpers.js';
 
 // ============================================================================
 // Plot Generation — All-Land Base + Water Overlay
@@ -301,56 +295,40 @@ export default {
 
   getGridSize() { return null; },
 
-  generate(settings, rng) {
-    const { mapSize, numPlayers } = settings;
+  beforeInit(settings) {
+    this._mapSize = settings.mapSize;
+  },
 
-    const { width: W, height: H } = getDefaultDimensions(mapSize);
+  generatePlotTypes(W, H, settings, rng) {
+    return generateOasisPlots(W, H, rng);
+  },
 
-    // Generate plot types
-    const plotTypes1D = generateOasisPlots(W, H, rng);
+  generateTerrain(W, H, plotTypes, settings, rng) {
+    const tg = new OasisTerrainGenerator(W, H, { mapSize: settings.mapSize });
+    return tg.generateTerrain(rng, plotTypes);
+  },
 
-    // Custom 4-band terrain
-    const tg = new OasisTerrainGenerator(W, H, { mapSize });
-    const terrain1D = tg.generateTerrain(rng, plotTypes1D);
+  addRivers(W, H, plotTypes, terrain, rng, callbacks) {
+    return addNileRivers(rng, plotTypes, terrain, W, H, this._mapSize);
+  },
 
-    // Nile-style rivers
-    const rivers1D = addNileRivers(rng, plotTypes1D, terrain1D, W, H, mapSize);
-
-    // Lakes
-    const riverGen = new RiverGenerator(W, H, { wrapX: false, wrapY: false });
-    const lakes1D = riverGen.addLakes(plotTypes1D);
-
-    // Features (Civ4 Oasis: linear latitude 0→1 south→north)
+  addFeatures(W, H, plotTypes, terrain, rivers, settings, rng) {
     const fg = new OasisFeatureGenerator(W, H, {
       jungleLatitude: 0.15,
       randIceLatitude: 0.30,
       wrapX: false, wrapY: false,
-      mapSize
+      mapSize: settings.mapSize
     });
-    const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
+    return fg.generateFeatures(rng, plotTypes, terrain, rivers);
+  },
 
-    // Bonuses
+  addBonuses(W, H, plotTypes, terrain, features, settings, rng, callbacks) {
     const bg = new BonusGenerator(W, H, {
-      numPlayers, wrapX: false, wrapY: false,
+      numPlayers: settings.numPlayers, wrapX: false, wrapY: false,
       topLatitude: 40, bottomLatitude: 0
     });
-    const bonuses1D = bg.addBonuses(rng, plotTypes1D, terrain1D, features1D);
+    return bg.addBonuses(rng, plotTypes, terrain, features);
+  },
 
-    // Starting plots — all normalizations disabled
-    const sp = new StartingPlots(W, H, {
-      minStartingDistanceModifier: -35,
-      skipNormalization: true,
-      wrapX: false, wrapY: false
-    });
-    const starts = sp.assignStartingPlots(
-      numPlayers, rng, plotTypes1D, terrain1D, features1D, bonuses1D, rivers1D, lakes1D
-    );
-
-    // Goody huts
-    const gg = new GoodyGenerator(W, H, { wrapX: false, wrapY: false });
-    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
-
-    return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
-  }
+  skipNormalization() { return true; }
 };

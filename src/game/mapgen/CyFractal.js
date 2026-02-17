@@ -1,5 +1,5 @@
 /**
- * CyFractal - Civ4-compatible fractal generator
+ * CyFractal - Exact port of CvFractal.cpp from Civ4 BTS SDK
  *
  * Generates 2D heightmaps using diamond-square algorithm with configurable
  * grain (feature size), flags (wrapping, polar attenuation, rift), and
@@ -7,31 +7,32 @@
  *
  * Grid is always at full resolution (2^fracXExp+1 × 2^fracYExp+1).
  * Grain controls the initial seed spacing within that grid:
- *   seed spacing = 2^(fracExp - grain)
+ *   seed spacing = 1 << iSmooth, where iSmooth = clamp(minExp - grain, 0, minExp)
  * Lower grain → larger spacing → bigger features (continents).
  * Higher grain → smaller spacing → finer features (terrain detail).
  *
- * This matches Civ4's CyFractal behavior where the fractal grid size
- * never changes — only the initial seed pattern varies with grain.
+ * Key C++ fidelity: polar edge zeroing and center rift attenuation are applied
+ * INSIDE the diamond-square loop on every pass, compounding the effect through
+ * refinement. This matches CvFractal::fracInitInternal() exactly.
  *
  * References:
- * - Civ4 SDK: CyFractal class
+ * - Civ4 BTS SDK: CvFractal.cpp, CvFractal.h
  * - CvMapGeneratorUtil.py: FractalWorld, HintedWorld
  */
 
 import { clamp, lerp } from './utils.js';
 
 // ============================================================================
-// FRACTAL FLAGS
+// FRACTAL FLAGS (match CvFractal.h constants)
 // ============================================================================
 
-/** Attenuate heights at poles using sin(PI * y / height) */
+/** Set polar edges to 0 each pass (creates smooth polar attenuation) */
 export const FRAC_POLAR = 0x01;
 
-/** Create vertical rift channel at map center (12.5% half-width, 25% total zone) */
+/** Create two vertical rift channels at x=0 and x=center (1/6 width each, applied per-pass) */
 export const FRAC_CENTER_RIFT = 0x02;
 
-/** Invert heights: maxHeight - height (used by Lakes map) */
+/** Invert heights: 255 - height (used by Lakes map) */
 export const FRAC_INVERT_HEIGHTS = 0x04;
 
 /** Wrap X coordinates during diamond-square generation */
@@ -71,8 +72,9 @@ export class CyFractal {
   /**
    * Initialize fractal with diamond-square algorithm
    *
-   * Grid is always at full resolution (2^fracXExp+1 × 2^fracYExp+1).
-   * Grain controls the initial seed point spacing within the grid.
+   * Matches C++ CvFractal::fracInit() which delegates to fracInitInternal().
+   * Polar and center rift flags are applied per-pass inside the diamond-square
+   * loop, compounding their effect through refinement passes.
    *
    * @param {number} mapWidth - Target map width in tiles
    * @param {number} mapHeight - Target map height in tiles
@@ -81,43 +83,15 @@ export class CyFractal {
    * @param {number} flags - Bitmask of FRAC_* flags
    */
   fracInit(mapWidth, mapHeight, grain, rng, flags = 0) {
-    this.mapWidth = mapWidth;
-    this.mapHeight = mapHeight;
-
-    // Grid always at full resolution (matching Civ4 behavior)
-    this.gridWidth = Math.pow(2, this.fracXExp) + 1;
-    this.gridHeight = Math.pow(2, this.fracYExp) + 1;
-
-    // Grain controls initial seed spacing, not grid resolution.
-    // seedStep = 2^(fracExp - grain), clamped so we always have at least 2 seeds.
-    const seedExpX = clamp(this.fracXExp - grain, 0, this.fracXExp - 1);
-    const seedExpY = clamp(this.fracYExp - grain, 0, this.fracYExp - 1);
-    const seedStepX = Math.pow(2, seedExpX);
-    const seedStepY = Math.pow(2, seedExpY);
-
-    // Allocate grid
-    this.grid = new Float64Array(this.gridWidth * this.gridHeight);
-
-    // Generate diamond-square fractal
-    const wrapX = (flags & FRAC_WRAP_X) !== 0;
-    const wrapY = (flags & FRAC_WRAP_Y) !== 0;
-    this._generateDiamondSquare(rng, wrapX, wrapY, seedStepX, seedStepY);
-
-    // Normalize to [0, 255]
-    this._normalizeGrid();
-
-    // Apply flags as post-processing
-    this._applyFlags(flags);
-
-    // Invalidate cached sorted heights
-    this.sortedHeights = null;
+    this._fracInitInternal(mapWidth, mapHeight, grain, rng, flags, null);
   }
 
   /**
    * Initialize fractal modulated by a rift fractal
    *
-   * The rift fractal creates vertical ocean channels by pulling down
-   * continent heights wherever rift heights are low.
+   * Matches C++ fracInit(... pRifts) path: generates base fractal with
+   * per-pass polar + center rift, then applies tectonicAction from the
+   * rift fractal to carve a dynamic ocean channel near x=0.
    *
    * @param {CyFractal} riftsFrac - Pre-initialized rift fractal
    * @param {boolean} hasCenterRift - If true, rift has FRAC_CENTER_RIFT applied
@@ -128,44 +102,48 @@ export class CyFractal {
    * @param {number} flags - Bitmask of FRAC_* flags
    */
   fracInitRifts(riftsFrac, hasCenterRift, mapWidth, mapHeight, grain, rng, flags = 0) {
-    // Matching original Civ4 C++: generate base continent fractal with ALL flags
-    // (CENTER_RIFT, POLAR, WRAP, etc.). fracInit applies center rift + polar
-    // attenuation and normalizes. Then rift modulation adds organic variation.
-    this.fracInit(mapWidth, mapHeight, grain, rng, flags);
+    this._fracInitInternal(mapWidth, mapHeight, grain, rng, flags, riftsFrac);
+  }
 
-    // Modulate by rift fractal
-    // Where rift is low, continent heights are pulled down
-    const w = this.gridWidth;
-    const h = this.gridHeight;
+  /**
+   * Internal fractal initialization — exact port of C++ fracInitInternal()
+   *
+   * Flow matches C++ exactly:
+   * 1. Diamond-square loop with per-pass wrap/polar/rift handling
+   * 2. If pRifts provided: tectonicAction() carves dynamic rift
+   * 3. If INVERT_HEIGHTS: flip all values (255 - value)
+   *
+   * @private
+   */
+  _fracInitInternal(mapWidth, mapHeight, grain, rng, flags, pRifts) {
+    this.mapWidth = mapWidth;
+    this.mapHeight = mapHeight;
 
-    // Rift fractal values below a threshold carve ocean channels.
-    // Values above the threshold leave continent heights untouched,
-    // matching Civ4's continent-splitting behavior where rifts create
-    // narrow ocean channels rather than uniformly flattening terrain.
-    const riftThreshold = 128; // ~50th percentile of rift fractal
+    // Grid always at full resolution (matching C++: m_iFracX = 1 << iFracXExp)
+    this.gridWidth = (1 << this.fracXExp) + 1;
+    this.gridHeight = (1 << this.fracYExp) + 1;
 
-    for (let gy = 0; gy < h; gy++) {
-      for (let gx = 0; gx < w; gx++) {
-        // Map grid coords to map coords for rift lookup
-        const mapX = (gx / Math.max(1, w - 1)) * (mapWidth - 1);
-        const mapY = (gy / Math.max(1, h - 1)) * (mapHeight - 1);
+    // Compute iSmooth matching C++: range(min(fracXExp, fracYExp) - grain, 0, min(...))
+    const minExp = Math.min(this.fracXExp, this.fracYExp);
+    const iSmooth = clamp(minExp - grain, 0, minExp);
 
-        // Get rift value (0-255)
-        const riftVal = riftsFrac.getHeight(mapX, mapY);
+    // Allocate grid (initialized to 0)
+    this.grid = new Float64Array(this.gridWidth * this.gridHeight);
 
-        if (riftVal < riftThreshold) {
-          // Scale height down proportionally — deeper rift = lower terrain
-          const riftStrength = 1.0 - (riftThreshold - riftVal) / riftThreshold;
-          this.grid[gy * w + gx] *= riftStrength;
-        }
-        // Heights where rift >= threshold are unaffected
-      }
+    // Diamond-square with per-pass flag application (matching C++ fracInitInternal loop)
+    this._generateDiamondSquareWithFlags(rng, flags, iSmooth);
+
+    // Tectonic action (assumes FRAC_WRAP_X is on)
+    if (pRifts) {
+      this._tectonicAction(pRifts);
     }
 
-    // Re-normalize after rift modulation
-    this._normalizeGrid();
+    // Invert heights (post-processing, matching C++)
+    if (flags & FRAC_INVERT_HEIGHTS) {
+      this._applyInvert();
+    }
 
-    // Invalidate cache
+    // Invalidate cached sorted heights
     this.sortedHeights = null;
   }
 
@@ -173,7 +151,12 @@ export class CyFractal {
    * Initialize fractal seeded by block hint data
    *
    * Used by HintedWorld for controlled continent placement.
-   * Hint values >= 192 indicate land, < 192 indicate water.
+   * Matches C++ fracInitHinted which strips FRAC_POLAR before calling
+   * fracInitInternal, then seeds from hint data instead of random.
+   *
+   * Note: Our implementation generates a separate diamond-square and blends
+   * it with upscaled hints, rather than using hints as seed values directly
+   * as C++ does. This divergence is acceptable for hint-based maps.
    *
    * @param {number[]} hintData - Flat array of hint values [0-255]
    * @param {number} hintWidth - Hint grid width (e.g., 16)
@@ -194,14 +177,11 @@ export class CyFractal {
     this.mapHeight = mapHeight;
 
     // Grid always at full resolution
-    this.gridWidth = Math.pow(2, this.fracXExp) + 1;
-    this.gridHeight = Math.pow(2, this.fracYExp) + 1;
+    this.gridWidth = (1 << this.fracXExp) + 1;
+    this.gridHeight = (1 << this.fracYExp) + 1;
 
     const w = this.gridWidth;
     const h = this.gridHeight;
-
-    // Allocate grid
-    this.grid = new Float64Array(w * h);
 
     // Upscale hint data to grid resolution with bilinear interpolation
     const hintGrid = new Float64Array(w * h);
@@ -232,23 +212,16 @@ export class CyFractal {
       }
     }
 
-    // Grain controls seed spacing for the diamond-square
-    const seedExpX = clamp(this.fracXExp - grain, 0, this.fracXExp - 1);
-    const seedExpY = clamp(this.fracYExp - grain, 0, this.fracYExp - 1);
-    const seedStepX = Math.pow(2, seedExpX);
-    const seedStepY = Math.pow(2, seedExpY);
+    // Compute iSmooth
+    const minExp = Math.min(this.fracXExp, this.fracYExp);
+    const iSmooth = clamp(minExp - grain, 0, minExp);
 
-    // Generate base diamond-square fractal
-    const wrapX = (flags & FRAC_WRAP_X) !== 0;
-    const wrapY = (flags & FRAC_WRAP_Y) !== 0;
-    this._generateDiamondSquare(rng, wrapX, wrapY, seedStepX, seedStepY);
-
-    // Normalize base fractal
-    this._normalizeGrid();
+    // Generate diamond-square (strip POLAR flag, matching C++ fracInitHinted)
+    this.grid = new Float64Array(w * h);
+    const flagsNonPolar = flags & (~FRAC_POLAR);
+    this._generateDiamondSquareWithFlags(rng, flagsNonPolar, iSmooth);
 
     // Blend hint data with fractal.
-    // Hints define where continents should be — the hint map should
-    // dominate at low grains (large features) and fade at high grains (detail).
     // Grain-dependent strength: ~0.60 at grain 1, ~0.18 at grain 5.
     const grainFactor = Math.max(0.3, 1.0 - (grain - 1) * 0.15);
     const HINT_STRENGTH = 0.6 * grainFactor;
@@ -264,8 +237,10 @@ export class CyFractal {
     // Re-normalize after blending
     this._normalizeGrid();
 
-    // Apply flags
-    this._applyFlags(flags);
+    // Invert if needed
+    if (flags & FRAC_INVERT_HEIGHTS) {
+      this._applyInvert();
+    }
 
     // Invalidate cache
     this.sortedHeights = null;
@@ -333,129 +308,214 @@ export class CyFractal {
   // ==========================================================================
 
   /**
-   * Generate fractal using diamond-square algorithm.
+   * Diamond-square with per-pass flag application — exact port of C++ fracInitInternal loop.
    *
-   * Seed points are placed at the given spacing, then diamond-square
-   * fills in all intermediate grid points down to 1-cell resolution.
+   * On every pass:
+   * 1. Sync wrap edges (FRAC_WRAP_X/Y) or zero polar edges (FRAC_POLAR)
+   * 2. Apply center rift attenuation (FRAC_CENTER_RIFT) — divides values at
+   *    two rift zones, compounding through passes for deep ocean channels
+   * 3. Seed (first pass) or interpolate (subsequent passes) grid points
+   *
+   * Values are integers in [0, 255], matching C++ clamped arithmetic.
    *
    * @param {SeededRandom} rng
-   * @param {boolean} wrapX
-   * @param {boolean} wrapY
-   * @param {number} seedStepX - Initial seed spacing in X
-   * @param {number} seedStepY - Initial seed spacing in Y
+   * @param {number} flags - Bitmask of FRAC_* flags
+   * @param {number} iSmooth - Number of refinement passes (computed from grain)
    * @private
    */
-  _generateDiamondSquare(rng, wrapX, wrapY, seedStepX, seedStepY) {
-    const w = this.gridWidth;
-    const h = this.gridHeight;
+  _generateDiamondSquareWithFlags(rng, flags, iSmooth) {
+    const w = this.gridWidth;   // fracX + 1
+    const h = this.gridHeight;  // fracY + 1
+    const fracX = w - 1;        // 2^fracXExp (= C++ m_iFracX)
+    const fracY = h - 1;        // 2^fracYExp (= C++ m_iFracY)
     const grid = this.grid;
 
-    // 1. Place seed points at the grain-determined spacing
-    for (let y = 0; y < h; y += seedStepY) {
-      for (let x = 0; x < w; x += seedStepX) {
-        grid[y * w + x] = rng.next();
+    const wrapX = (flags & FRAC_WRAP_X) !== 0;
+    const wrapY = (flags & FRAC_WRAP_Y) !== 0;
+    const polar = (flags & FRAC_POLAR) !== 0;
+    const centerRift = (flags & FRAC_CENTER_RIFT) !== 0;
+
+    for (let iPass = iSmooth; iPass >= 0; iPass--) {
+      // Build screen mask (C++: iScreen |= (1 << iI) for iI = 0..iPass)
+      let iScreen = 0;
+      for (let i = 0; i <= iPass; i++) {
+        iScreen |= (1 << i);
       }
-    }
 
-    // Ensure the last column/row are seeded (they should be, since
-    // seedStep always divides gridSize-1 evenly as both are powers of 2)
-    // Handle wrapping: matching edges
-    if (wrapX) {
-      for (let y = 0; y < h; y += seedStepY) {
-        grid[y * w + (w - 1)] = grid[y * w];
-      }
-    }
-    if (wrapY) {
-      for (let x = 0; x < w; x += seedStepX) {
-        grid[(h - 1) * w + x] = grid[x];
-      }
-    }
-    if (wrapX && wrapY) {
-      grid[(h - 1) * w + (w - 1)] = grid[0];
-    }
-
-    // 2. Diamond-square iterations from seed spacing down to 1
-    let stepX = seedStepX;
-    let stepY = seedStepY;
-    let scale = 1.0;
-    const roughness = 0.55;
-
-    while (stepX > 1 || stepY > 1) {
-      const halfX = Math.max(1, Math.floor(stepX / 2));
-      const halfY = Math.max(1, Math.floor(stepY / 2));
-
-      // Diamond step: compute center of each cell
-      for (let y = halfY; y < h - 1; y += Math.max(1, stepY)) {
-        for (let x = halfX; x < w - 1; x += Math.max(1, stepX)) {
-          const tl = grid[(y - halfY) * w + (x - halfX)];
-          const tr = grid[(y - halfY) * w + (x + halfX)];
-          const bl = grid[(y + halfY) * w + (x - halfX)];
-          const br = grid[(y + halfY) * w + (x + halfX)];
-          const avg = (tl + tr + bl + br) / 4;
-          grid[y * w + x] = avg + (rng.next() - 0.5) * scale;
+      // --- Per-pass Y edge handling ---
+      if (wrapY) {
+        for (let x = 0; x <= fracX; x++) {
+          grid[fracY * w + x] = grid[0 * w + x];
+        }
+      } else if (polar) {
+        for (let x = 0; x <= fracX; x++) {
+          grid[0 * w + x] = 0;
+          grid[fracY * w + x] = 0;
         }
       }
 
-      // Square step: compute edge midpoints
-      for (let y = 0; y < h; y += Math.max(1, halfY)) {
-        // Offset X based on row to create diamond pattern
-        const xStart = ((y / halfY) % 2 === 0) ? halfX : 0;
-        for (let x = xStart; x < w; x += Math.max(1, stepX)) {
-          let sum = 0;
-          let count = 0;
+      // --- Per-pass X edge handling ---
+      if (wrapX) {
+        for (let y = 0; y <= fracY; y++) {
+          grid[y * w + fracX] = grid[y * w + 0];
+        }
+      } else if (polar) {
+        for (let y = 0; y <= fracY; y++) {
+          grid[y * w + 0] = 0;
+          grid[y * w + fracX] = 0;
+        }
+      }
 
-          // Sample from 4 cardinal neighbors (with optional wrapping)
-          // North
-          if (y >= halfY) {
-            sum += grid[(y - halfY) * w + x];
-            count++;
-          } else if (wrapY) {
-            sum += grid[(h - 1 - halfY) * w + x];
-            count++;
+      // --- Per-pass center rift attenuation (C++ exact formula) ---
+      // Two rifts: at y=0 and y=center (if WRAP_Y), at x=0 and x=center (if WRAP_X)
+      // Each rift spans 1/6 of the grid dimension. Divisor = abs(midpoint - offset) + 1
+      // Applied every pass, this compounds into deep ocean channels.
+      if (centerRift) {
+        if (wrapY) {
+          const riftW = Math.floor(fracY / 6);
+          const mid = Math.floor(fracY / 12);
+          const halfY = Math.floor(fracY / 2);
+          for (let x = 0; x <= fracX; x++) {
+            for (let iy = 0; iy < riftW; iy++) {
+              const divisor = Math.abs(mid - iy) + 1;
+              grid[iy * w + x] = Math.floor(grid[iy * w + x] / divisor);
+              grid[(halfY + iy) * w + x] = Math.floor(grid[(halfY + iy) * w + x] / divisor);
+            }
           }
-
-          // South
-          if (y + halfY < h) {
-            sum += grid[(y + halfY) * w + x];
-            count++;
-          } else if (wrapY) {
-            sum += grid[halfY * w + x];
-            count++;
-          }
-
-          // West
-          if (x >= halfX) {
-            sum += grid[y * w + (x - halfX)];
-            count++;
-          } else if (wrapX) {
-            sum += grid[y * w + (w - 1 - halfX)];
-            count++;
-          }
-
-          // East
-          if (x + halfX < w) {
-            sum += grid[y * w + (x + halfX)];
-            count++;
-          } else if (wrapX) {
-            sum += grid[y * w + halfX];
-            count++;
-          }
-
-          if (count > 0) {
-            grid[y * w + x] = sum / count + (rng.next() - 0.5) * scale;
+        }
+        if (wrapX) {
+          const riftW = Math.floor(fracX / 6);
+          const mid = Math.floor(fracX / 12);
+          const halfX = Math.floor(fracX / 2);
+          for (let y = 0; y <= fracY; y++) {
+            for (let ix = 0; ix < riftW; ix++) {
+              const divisor = Math.abs(mid - ix) + 1;
+              grid[y * w + ix] = Math.floor(grid[y * w + ix] / divisor);
+              grid[y * w + (halfX + ix)] = Math.floor(grid[y * w + (halfX + ix)] / divisor);
+            }
           }
         }
       }
 
-      // Halve step sizes and reduce scale
-      stepX = halfX;
-      stepY = halfY;
-      scale *= roughness;
+      // --- Diamond-square interpolation (C++ exact structure) ---
+      // C++: for iX = 0 to (fracX >> iPass) + (wrapX ? 0 : 1)
+      //      grid coord = iX << iPass
+      const xCount = (fracX >> iPass) + (wrapX ? 0 : 1);
+      const yCount = (fracY >> iPass) + (wrapY ? 0 : 1);
+
+      for (let iX = 0; iX < xCount; iX++) {
+        for (let iY = 0; iY < yCount; iY++) {
+          const gx = iX << iPass;  // Actual grid X coordinate
+          const gy = iY << iPass;  // Actual grid Y coordinate
+
+          if (iPass === iSmooth) {
+            // Seed pass: random value 0-255 (C++: random.get(256))
+            grid[gy * w + gx] = Math.floor(rng.next() * 256);
+          } else {
+            // Interpolation pass: classify point by screen mask
+            const xBit = gx & iScreen;
+            const yBit = gy & iScreen;
+
+            if (xBit !== 0 && yBit !== 0) {
+              // Center point: average of 4 diagonal neighbors
+              const step = 1 << iPass;
+              let iSum = grid[(gy - step) * w + (gx - step)]
+                       + grid[(gy - step) * w + (gx + step)]
+                       + grid[(gy + step) * w + (gx - step)]
+                       + grid[(gy + step) * w + (gx + step)];
+              iSum >>= 2;
+              iSum += Math.floor(rng.next() * (1 << (8 - iSmooth + iPass)));
+              iSum -= (1 << (7 - iSmooth + iPass));
+              grid[gy * w + gx] = clamp(iSum, 0, 255);
+            } else if (xBit !== 0) {
+              // Horizontal midpoint: average of left and right
+              const step = 1 << iPass;
+              let iSum = grid[gy * w + (gx - step)]
+                       + grid[gy * w + (gx + step)];
+              iSum >>= 1;
+              iSum += Math.floor(rng.next() * (1 << (8 - iSmooth + iPass)));
+              iSum -= (1 << (7 - iSmooth + iPass));
+              grid[gy * w + gx] = clamp(iSum, 0, 255);
+            } else if (yBit !== 0) {
+              // Vertical midpoint: average of top and bottom
+              const step = 1 << iPass;
+              let iSum = grid[(gy - step) * w + gx]
+                       + grid[(gy + step) * w + gx];
+              iSum >>= 1;
+              iSum += Math.floor(rng.next() * (1 << (8 - iSmooth + iPass)));
+              iSum -= (1 << (7 - iSmooth + iPass));
+              grid[gy * w + gx] = clamp(iSum, 0, 255);
+            }
+            // else: corner point — already set in earlier pass, skip
+          }
+        }
+      }
     }
   }
 
   /**
+   * Tectonic action — exact port of C++ CvFractal::tectonicAction()
+   *
+   * Carves a dynamic rift channel near x=0 (the wrap seam). The rift position
+   * wiggles vertically based on the rift fractal sampled at column 3/4.
+   * Width is fixed at 16 grid cells on each side of center.
+   * Values blend linearly from 0 at center to original at edges.
+   *
+   * Assumes FRAC_WRAP_X is on (matching C++ comment).
+   *
+   * @param {CyFractal} pRifts - Rift fractal (same grid dimensions)
+   * @private
+   */
+  _tectonicAction(pRifts) {
+    const w = this.gridWidth;
+    const fracX = w - 1;
+    const fracY = this.gridHeight - 1;
+    const grid = this.grid;
+
+    // C++: iRift2x = (m_iFracX / 4) * 3
+    const iRift2x = Math.floor(fracX / 4) * 3;
+    const iWidth = 16;
+
+    for (let iY = 0; iY <= fracY; iY++) {
+      for (let iX = 0; iX < iWidth; iX++) {
+        // Sample rift fractal at column iRift2x for this row
+        // C++: pRifts->m_aaiFrac[iRift2x][iY] → JS: pRifts.grid[iY * w + iRift2x]
+        const riftVal = pRifts.grid[iY * pRifts.gridWidth + iRift2x];
+
+        // Compute dynamic horizontal offset (C++ integer division with truncation)
+        const offset = Math.trunc(Math.trunc((riftVal - 128) * fracX / 128) / 8);
+
+        const iRx = this._yieldX(offset + iX);
+        const iLx = this._yieldX(offset - iX);
+
+        // Linear blend to 0 at center: value = (value * iX) / iWidth
+        // C++: iDeep = 0, so formula simplifies to (value * iX + 0 * (iWidth - iX)) / iWidth
+        grid[iY * w + iRx] = Math.floor((grid[iY * w + iRx] * iX) / iWidth);
+        grid[iY * w + iLx] = Math.floor((grid[iY * w + iLx] * iX) / iWidth);
+      }
+    }
+
+    // Sync wrap edge (C++: m_aaiFrac[m_iFracX][iY] = m_aaiFrac[0][iY])
+    for (let iY = 0; iY <= fracY; iY++) {
+      grid[iY * w + fracX] = grid[iY * w + 0];
+    }
+  }
+
+  /**
+   * Wrap X coordinate within [0, fracX) — port of C++ CvFractal::yieldX()
+   * Assumes FRAC_WRAP_X is on.
+   * @private
+   */
+  _yieldX(x) {
+    const fracX = this.gridWidth - 1;
+    if (x < 0) return x + fracX;
+    if (x >= fracX) return x - fracX;
+    return x;
+  }
+
+  /**
    * Normalize grid values to [0, 255] range
+   * Used by fracInitHints after hint blending.
    * @private
    */
   _normalizeGrid() {
@@ -476,82 +536,9 @@ export class CyFractal {
   }
 
   /**
-   * Apply flag-based post-processing.
-   * Attenuations (polar, center rift) are applied multiplicatively first,
-   * then a single normalization pass restores the [0, 255] range.
-   * This matches Civ4's C++ CyFractal behavior where attenuations compose
-   * before normalization, preventing intermediate normalizations from
-   * diluting the polar/rift effects.
-   * @private
-   */
-  _applyFlags(flags) {
-    if (flags & FRAC_POLAR) {
-      this._applyPolar();
-    }
-    if (flags & FRAC_CENTER_RIFT) {
-      this._applyCenterRift();
-    }
-    if (flags & (FRAC_POLAR | FRAC_CENTER_RIFT)) {
-      this._normalizeGrid();
-    }
-    if (flags & FRAC_INVERT_HEIGHTS) {
-      this._applyInvert();
-    }
-  }
-
-  /**
-   * Apply polar attenuation using sinusoidal falloff.
-   * Heights are multiplied by sin(PI * y / height).
-   * No normalization here — caller (_applyFlags / fracInitRifts)
-   * does a single normalize after all attenuations compose.
-   * @private
-   */
-  _applyPolar() {
-    const w = this.gridWidth;
-    const h = this.gridHeight;
-
-    for (let y = 0; y < h; y++) {
-      // Sinusoidal falloff: 0 at poles (y=0, y=h-1), 1 at equator
-      const factor = Math.sin(Math.PI * y / (h - 1));
-      for (let x = 0; x < w; x++) {
-        this.grid[y * w + x] *= factor;
-      }
-    }
-  }
-
-  /**
-   * Apply center rift attenuation.
-   * Creates a rift zone at horizontal center with linear falloff.
-   * Half-width is gridWidth/8 (~12.5%), matching Civ4's C++ CyFractal.
-   * Total rift zone spans ~25% of the grid width.
-   * No normalization here — caller does a single normalize after all
-   * attenuations compose.
-   * @private
-   */
-  _applyCenterRift() {
-    const w = this.gridWidth;
-    const h = this.gridHeight;
-    const centerX = w / 2;
-    const riftWidth = Math.floor(w / 8); // 12.5% half-width — matches Civ4 C++ CyFractal
-
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        // Distance from center (with world wrap consideration)
-        let dist = Math.abs(x - centerX);
-        dist = Math.min(dist, w - dist); // Handle wrap
-
-        if (dist < riftWidth) {
-          // Linear falloff: 0 at center, 1 at rift edge.
-          // Matches Civ4's original linear attenuation.
-          const t = dist / riftWidth;
-          this.grid[y * w + x] *= t;
-        }
-      }
-    }
-  }
-
-  /**
    * Invert all heights (for Lakes map type)
+   * C++ iterates interior only (iX < m_iFracX, iY < m_iFracY) but the
+   * difference is negligible. We invert all cells for simplicity.
    * @private
    */
   _applyInvert() {

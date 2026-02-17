@@ -14,11 +14,8 @@ import { FeatureGenerator } from '../FeatureGenerator.js';
 import { RiverGenerator } from '../RiverGenerator.js';
 import { BonusGenerator } from '../BonusGenerator.js';
 import { StartingPlots } from '../StartingPlots.js';
-import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
-  getDefaultDimensions,
-  resolveClimateSettings,
-  buildMapResult
+  resolveClimateSettings
 } from './_helpers.js';
 
 // ============================================================================
@@ -224,97 +221,90 @@ export default {
     }
   ],
 
-  // Legacy single-option support
-  customOption: {
-    name: 'Mirror Type',
-    values: ['Reflection', 'Inversion', 'Copy', 'Opposite'],
-    default: 0
-  },
-
   getGridSize() { return null; },
 
-  generate(settings, rng) {
-    const { mapSize, climate, numPlayers } = settings;
-    const climateConfig = resolveClimateSettings(climate);
-
-    const { width: W, height: H } = getDefaultDimensions(mapSize);
-
+  beforeInit(settings, rng) {
     const mirrorTypeIndex = settings.customOption != null ? settings.customOption : 0;
     const mirrorNames = ['reflection', 'inversion', 'copy', 'opposite'];
-    const mirrorType = mirrorNames[mirrorTypeIndex] || 'reflection';
-    const transform = MIRROR_TRANSFORMS[mirrorType];
+    this._mirrorType = mirrorNames[mirrorTypeIndex] || 'reflection';
+    this._transform = MIRROR_TRANSFORMS[this._mirrorType];
+    this._landmass = resolveMirrorLandmass(rng);
+    this._climateConfig = resolveClimateSettings(settings.climate);
+    this._mapSize = settings.mapSize;
+    this._numPlayers = settings.numPlayers;
+  },
 
-    const landmass = resolveMirrorLandmass(rng);
-
-    // ── STAGE 1: Generate plot types (half map) ──
+  generateRandomMap(W, H, settings, rng) {
     const fw = new FractalWorld(W, H, {
       seaLevelChange: 0,
-      hillGroupOneRange: climateConfig.iHillRange,
-      hillGroupTwoRange: climateConfig.iHillRange,
-      peakPercent: climateConfig.iPeakPercent,
+      hillGroupOneRange: this._climateConfig.iHillRange,
+      hillGroupTwoRange: this._climateConfig.iHillRange,
+      peakPercent: this._climateConfig.iPeakPercent,
       wrapX: false, wrapY: false
     });
 
     fw.initFractal(rng, {
-      continent_grain: landmass.grain,
-      rift_grain: landmass.rift,
-      has_center_rift: landmass.rift >= 0,
-      invert_heights: landmass.water <= 15,
+      continent_grain: this._landmass.grain,
+      rift_grain: this._landmass.rift,
+      has_center_rift: this._landmass.rift >= 0,
+      invert_heights: this._landmass.water <= 15,
       polar: true
     });
 
-    const plotTypes1D = fw.generatePlotTypes(rng, {
-      water_percent: landmass.water,
+    const plotTypes = fw.generatePlotTypes(rng, {
+      water_percent: this._landmass.water,
       grain_amount: 3,
       shift_plot_types: false
     });
+    mirrorArray(plotTypes, W, H, this._transform);
 
-    // Mirror plot types
-    mirrorArray(plotTypes1D, W, H, transform);
+    const tg = new TerrainGenerator(W, H, { wrapX: false, wrapY: false, mapSize: this._mapSize });
+    const terrain = tg.generateTerrain(rng, plotTypes);
+    mirrorArray(terrain, W, H, this._transform);
 
-    // ── STAGE 2: Generate terrain + mirror ──
-    const tg = new TerrainGenerator(W, H, { wrapX: false, wrapY: false, mapSize });
-    const terrain1D = tg.generateTerrain(rng, plotTypes1D);
-    mirrorArray(terrain1D, W, H, transform);
+    return { plotTypes, terrain };
+  },
 
-    // ── STAGE 3: Rivers + mirror with direction corrections ──
+  addRivers(W, H, plotTypes, terrain, rng, callbacks) {
     const riverGen = new RiverGenerator(W, H, { wrapX: false, wrapY: false });
-    const rivers1D = riverGen.addRivers(rng, plotTypes1D, terrain1D);
-    mirrorRivers(rivers1D, W, H, transform, mirrorType);
+    const rivers = riverGen.addRivers(rng, plotTypes, terrain);
+    mirrorRivers(rivers, W, H, this._transform, this._mirrorType);
+    return rivers;
+  },
 
-    // ── STAGE 4: Lakes + mirror ──
-    const lakes1D = riverGen.addLakes(plotTypes1D);
-    mirrorArray(lakes1D, W, H, transform);
+  addLakes(W, H, plotTypes, rng) {
+    const riverGen = new RiverGenerator(W, H, { wrapX: false, wrapY: false });
+    const lakes = riverGen.addLakes(plotTypes);
+    mirrorArray(lakes, W, H, this._transform);
+    return lakes;
+  },
 
-    // ── STAGE 5: Features + mirror ──
+  addFeatures(W, H, plotTypes, terrain, rivers, settings, rng) {
     const fg = new FeatureGenerator(W, H, {
-      jungleLatitude: climateConfig.iJungleLatitude,
-      randIceLatitude: climateConfig.fRandIceLatitude,
-      mapSize,
+      jungleLatitude: this._climateConfig.iJungleLatitude,
+      randIceLatitude: this._climateConfig.fRandIceLatitude,
+      mapSize: this._mapSize,
       wrapX: false, wrapY: false
     });
-    const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
-    mirrorArray(features1D, W, H, transform);
+    const features = fg.generateFeatures(rng, plotTypes, terrain, rivers);
+    mirrorArray(features, W, H, this._transform);
+    return features;
+  },
 
-    // ── STAGE 6: Bonuses + mirror ──
+  addBonuses(W, H, plotTypes, terrain, features, settings, rng, callbacks) {
     const bg = new BonusGenerator(W, H, {
-      numPlayers, wrapX: false, wrapY: false
+      numPlayers: this._numPlayers, wrapX: false, wrapY: false
     });
-    const bonuses1D = bg.addBonuses(rng, plotTypes1D, terrain1D, features1D);
-    mirrorArray(bonuses1D, W, H, transform);
+    const bonuses = bg.addBonuses(rng, plotTypes, terrain, features);
+    mirrorArray(bonuses, W, H, this._transform);
+    return bonuses;
+  },
 
-    // ── STAGE 7: Starting plots — mirrored positions ──
-    const starts = assignStartsMirror(numPlayers, plotTypes1D, terrain1D,
-                                       features1D, bonuses1D, rivers1D, lakes1D,
-                                       W, H, transform, rng);
+  assignStartingPlots(W, H, plotTypes, terrain, features, bonuses, rivers, lakes, settings, rng) {
+    return assignStartsMirror(settings.numPlayers, plotTypes, terrain,
+                              features, bonuses, rivers, lakes,
+                              W, H, this._transform, rng);
+  },
 
-    // NO normalization (preserves symmetry)
-
-    // Goody huts
-    const gg = new GoodyGenerator(W, H, { wrapX: false, wrapY: false });
-    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
-
-    return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
-  }
+  skipNormalization() { return true; }
 };

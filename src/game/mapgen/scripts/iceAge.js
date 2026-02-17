@@ -10,14 +10,9 @@
 import { FractalWorld, PLOT } from '../FractalWorld.js';
 import { TerrainGenerator, TERRAIN } from '../TerrainGenerator.js';
 import { FeatureGenerator, FEATURE } from '../FeatureGenerator.js';
-import { RiverGenerator } from '../RiverGenerator.js';
-import { BonusGenerator } from '../BonusGenerator.js';
-import { StartingPlots } from '../StartingPlots.js';
-import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
   resolveSeaLevelChange,
-  resolveClimateSettings,
-  buildMapResult
+  resolveClimateSettings
 } from './_helpers.js';
 
 // ============================================================================
@@ -185,13 +180,6 @@ export default {
     }
   ],
 
-  // Legacy single-option support
-  customOption: {
-    name: 'Landmass Type',
-    values: ['Random', 'Wide Continents', 'Narrow Continents', 'Islands', 'Small Islands'],
-    default: 0
-  },
-
   getGridSize(worldSize) {
     const table = {
       duel:     [10, 4],
@@ -201,64 +189,32 @@ export default {
       large:    [26, 11],
       huge:     [32, 13]
     };
-    return table[worldSize] || table.standard;
+    const grid = table[worldSize] || table.standard;
+    return { width: grid[0] * 4, height: grid[1] * 4 };
   },
 
-  generate(settings, rng) {
-    const { mapSize, climate, seaLevel, numPlayers } = settings;
-    const climateConfig = resolveClimateSettings(climate);
-    const seaLevelChange = resolveSeaLevelChange(seaLevel);
-
-    const gridSize = this.getGridSize(mapSize);
-    const W = gridSize[0] * 4;
-    const H = gridSize[1] * 4;
-
+  beforeInit(settings, rng) {
     const customOption = settings.customOption != null ? settings.customOption : 0;
-    const grainConfig = resolveIceAgeGrain(customOption, rng);
+    this._grainConfig = resolveIceAgeGrain(customOption, rng);
+  },
 
-    // Generate plot types
-    const plotTypes1D = generateIceAgePlots(W, H, seaLevelChange, climateConfig, grainConfig, rng);
+  generatePlotTypes(W, H, settings, rng) {
+    const climateConfig = resolveClimateSettings(settings.climate);
+    const seaLevelChange = resolveSeaLevelChange(settings.seaLevel);
+    return generateIceAgePlots(W, H, seaLevelChange, climateConfig, this._grainConfig, rng);
+  },
 
-    // Custom terrain
-    const tg = new IceAgeTerrainGenerator(W, H, { mapSize });
-    const terrain1D = tg.generateTerrain(rng, plotTypes1D);
+  generateTerrain(W, H, plotTypes, settings, rng) {
+    const tg = new IceAgeTerrainGenerator(W, H, { mapSize: settings.mapSize });
+    return tg.generateTerrain(rng, plotTypes);
+  },
 
-    // Rivers
-    const riverGen = new RiverGenerator(W, H, { wrapX: true, wrapY: false });
-    const rivers1D = riverGen.addRivers(rng, plotTypes1D, terrain1D);
-    const lakes1D = riverGen.addLakes(plotTypes1D);
-
-    // Custom features (aggressive ice)
+  addFeatures(W, H, plotTypes, terrain, rivers, settings, rng) {
+    const climateConfig = resolveClimateSettings(settings.climate);
     const fg = new IceAgeFeatureGenerator(W, H, {
       randIceLatitude: climateConfig.fRandIceLatitude,
-      mapSize
+      mapSize: settings.mapSize
     });
-    const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
-
-    // Bonuses
-    const bg = new BonusGenerator(W, H, {
-      numPlayers, wrapX: true, wrapY: false
-    });
-    const bonuses1D = bg.addBonuses(rng, plotTypes1D, terrain1D, features1D);
-
-    // Starting plots
-    const sp = new StartingPlots(W, H, {
-      minStartingDistanceModifier: 0,
-      wrapX: true, wrapY: false
-    });
-    const starts = sp.assignStartingPlots(
-      numPlayers, rng, plotTypes1D, terrain1D, features1D, bonuses1D, rivers1D, lakes1D
-    );
-
-    // Normalize
-    sp.normalize(starts, plotTypes1D, terrain1D, features1D,
-                 bonuses1D, rivers1D, lakes1D, rng);
-
-    // Goody huts
-    const gg = new GoodyGenerator(W, H, { wrapX: true, wrapY: false });
-    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
-
-    return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
+    return fg.generateFeatures(rng, plotTypes, terrain, rivers);
   }
 };

@@ -12,16 +12,11 @@ import { FRAC_WRAP_X, FRAC_POLAR } from '../CyFractal.js';
 import { PLOT } from '../FractalWorld.js';
 import { MultilayeredFractal } from '../MultilayeredFractal.js';
 import { TerrainGenerator } from '../TerrainGenerator.js';
-import { FeatureGenerator } from '../FeatureGenerator.js';
-import { RiverGenerator } from '../RiverGenerator.js';
-import { BonusGenerator } from '../BonusGenerator.js';
 import { StartingPlots } from '../StartingPlots.js';
-import { GoodyGenerator } from '../GoodyGenerator.js';
 import {
   resolveSeaLevelChange,
   resolveClimateSettings,
-  findBiggestLandArea,
-  buildMapResult
+  findBiggestLandArea
 } from './_helpers.js';
 
 // ============================================================================
@@ -383,69 +378,32 @@ export default {
       large:    [32, 20],
       huge:     [38, 24]
     };
-    return table[worldSize] || table.standard;
+    const grid = table[worldSize] || table.standard;
+    return { width: grid[0] * 4, height: grid[1] * 4 };
   },
 
-  generate(settings, rng) {
-    const { mapSize, climate, seaLevel, numPlayers } = settings;
-    const climateConfig = resolveClimateSettings(climate);
-    const sea = clamp(resolveSeaLevelChange(seaLevel), -5, 5);
-    const grains = getTerraGrains(mapSize);
+  beforeInit(settings, rng) {
+    this._flipNS = rng.next() < 0.5;
+    this._flipEW = rng.next() < 0.5;
+  },
 
-    const gridSize = this.getGridSize(mapSize);
-    const W = gridSize[0] * 4;
-    const H = gridSize[1] * 4;
-
+  generatePlotTypes(W, H, settings, rng) {
+    const climateConfig = resolveClimateSettings(settings.climate);
+    const sea = clamp(resolveSeaLevelChange(settings.seaLevel), -5, 5);
+    const grains = getTerraGrains(settings.mapSize);
     const iFlags = FRAC_WRAP_X | FRAC_POLAR;
+    return generateTerraRegions(W, H, sea, grains, iFlags, climateConfig, this._flipNS, this._flipEW, rng);
+  },
 
-    // Randomization: N/S flip and E/W flip (each 50% chance)
-    const roll1 = rng.next() < 0.5;
-    const roll2 = rng.next() < 0.5;
+  generateTerrain(W, H, plotTypes, settings, rng) {
+    const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false, mapSize: settings.mapSize });
+    return tg.generateTerrain(rng, plotTypes);
+  },
 
-    // Generate plot types
-    const plotTypes1D = generateTerraRegions(W, H, sea, grains, iFlags,
-                                              climateConfig, roll1, roll2, rng);
-
-    // Default terrain, rivers, features, bonuses
-    const tg = new TerrainGenerator(W, H, { wrapX: true, wrapY: false, mapSize });
-    const terrain1D = tg.generateTerrain(rng, plotTypes1D);
-
-    const riverGen = new RiverGenerator(W, H, { wrapX: true, wrapY: false });
-    const rivers1D = riverGen.addRivers(rng, plotTypes1D, terrain1D);
-    const lakes1D = riverGen.addLakes(plotTypes1D);
-
-    const fg = new FeatureGenerator(W, H, {
-      jungleLatitude: climateConfig.iJungleLatitude,
-      randIceLatitude: climateConfig.fRandIceLatitude,
-      mapSize,
-      wrapX: true, wrapY: false
-    });
-    const features1D = fg.generateFeatures(rng, plotTypes1D, terrain1D, rivers1D);
-
-    const bg = new BonusGenerator(W, H, {
-      numPlayers, wrapX: true, wrapY: false
-    });
-    const bonuses1D = bg.addBonuses(rng, plotTypes1D, terrain1D, features1D);
-
-    // Starting plots — ALL players on biggest landmass (Old World)
-    const starts = assignStartsTerra(
-      numPlayers, plotTypes1D, terrain1D, features1D, bonuses1D,
-      rivers1D, lakes1D, W, H, rng
+  assignStartingPlots(W, H, plotTypes, terrain, features, bonuses, rivers, lakes, settings, rng) {
+    return assignStartsTerra(
+      settings.numPlayers, plotTypes, terrain, features, bonuses,
+      rivers, lakes, W, H, rng
     );
-
-    // Normalize with reduced distance modifier
-    const sp = new StartingPlots(W, H, {
-      minStartingDistanceModifier: -20,
-      wrapX: true, wrapY: false
-    });
-    sp.normalize(starts, plotTypes1D, terrain1D, features1D,
-                 bonuses1D, rivers1D, lakes1D, rng);
-
-    // Goody huts
-    const gg = new GoodyGenerator(W, H, { wrapX: true, wrapY: false });
-    const goodies1D = gg.addGoodies(rng, plotTypes1D, terrain1D, features1D, bonuses1D, starts);
-
-    return buildMapResult(W, H, settings, plotTypes1D, terrain1D, features1D,
-                          bonuses1D, rivers1D, lakes1D, starts, goodies1D);
   }
 };

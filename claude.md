@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Fundamental Rule: Civ4 BTS Authenticity Above All
+
+**Fidelity to the original Civ4 Beyond the Sword implementation is the highest priority in this project.** This rule overrides all other considerations:
+
+1. **If our code matches the original Civ4 BTS C++/Python behavior, it is correct** — even if the behavior seems wrong, suboptimal, or unintuitive.
+2. **If a test contradicts authentic Civ4 behavior, the test is wrong** — fix the test, not the code.
+3. **Never "improve" upon Civ4's algorithms** unless explicitly asked. If Civ4 allows rivers on peaks, so do we. If Civ4 has a quirky formula, we replicate the quirk.
+4. **Always verify against original sources** before proposing changes: the Civ4 BTS SDK C++ files (`CvMapGenerator.cpp`, etc.), Python scripts (`CvMapGeneratorUtil.py`, PublicMaps), and XML data files are the source of truth.
+5. **When in doubt, check the original code** at `D:\Games\Civilization IV Complete\Civ4\Beyond the Sword\` before assuming something is a bug.
+
 ## Project Overview
 
 Civ4web is a web-based clone of Civilization IV: Beyond the Sword. The goal is to recreate the exact Civ4 BTS game mechanics and formulas using modern web technologies.
