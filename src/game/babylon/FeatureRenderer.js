@@ -112,9 +112,9 @@ export function buildFeatures(scene, mapData, positions) {
   }
 
   // --- Rivers (edge-based) ---
-  // Rivers flow along tile edges. Each tile can have:
-  //   isNOfRiver: river along north edge (between vertex (x,y) and (x+1,y))
-  //   isWOfRiver: river along west edge (between vertex (x,y) and (x,y+1))
+  // Civ4-correct edge semantics:
+  //   isNOfRiver at (x,y): bottom/south horizontal edge — vertex(x,y+1) to vertex(x+1,y+1)
+  //   isWOfRiver at (x,y): right/east vertical edge    — vertex(x+1,y)  to vertex(x+1,y+1)
   const riverPaths = [];
   const riverOffset = 0.06; // slight Y offset above terrain
 
@@ -123,23 +123,23 @@ export function buildFeatures(scene, mapData, positions) {
       const tile = mapData.getTile(x, y);
       if (!tile) continue;
 
-      // North edge: between vertices (x,y) and (x+1,y)
+      // Bottom/south edge: between vertices (x,y+1) and (x+1,y+1)
       if (tile.isNOfRiver) {
-        const y1 = getVertexY(x, y) + riverOffset;
-        const y2 = getVertexY(x + 1, y) + riverOffset;
+        const y1 = getVertexY(x, y + 1) + riverOffset;
+        const y2 = getVertexY(x + 1, y + 1) + riverOffset;
         riverPaths.push([
-          new Vector3(x, y1, y),
-          new Vector3(x + 1, y2, y)
+          new Vector3(x, y1, y + 1),
+          new Vector3(x + 1, y2, y + 1)
         ]);
       }
 
-      // West edge: between vertices (x,y) and (x,y+1)
+      // Right/east edge: between vertices (x+1,y) and (x+1,y+1)
       if (tile.isWOfRiver) {
-        const y1 = getVertexY(x, y) + riverOffset;
-        const y2 = getVertexY(x, y + 1) + riverOffset;
+        const y1 = getVertexY(x + 1, y) + riverOffset;
+        const y2 = getVertexY(x + 1, y + 1) + riverOffset;
         riverPaths.push([
-          new Vector3(x, y1, y),
-          new Vector3(x, y2, y + 1)
+          new Vector3(x + 1, y1, y),
+          new Vector3(x + 1, y2, y + 1)
         ]);
       }
     }

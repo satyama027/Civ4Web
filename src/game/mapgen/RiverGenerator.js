@@ -546,42 +546,50 @@ export class RiverGenerator {
   /**
    * Place a river edge between two adjacent tiles.
    *
-   * Edge-to-tile mapping (y=0 is north, y increases southward):
+   * Civ4-correct edge semantics (y=0 is north, y increases southward):
+   *   isNOfRiver at (x,y) = bottom/south horizontal edge of tile (x,y)
+   *     — tile (x,y) is NORTH of the river segment
+   *   isWOfRiver at (x,y) = right/east vertical edge of tile (x,y)
+   *     — tile (x,y) is WEST of the river segment
    *
    * | Movement  | Edge Type   | Stored On          | Flow Field        |
    * |-----------|-------------|--------------------|-------------------|
-   * | NORTH     | isNOfRiver  | (fromX, fromY)     | riverNSDirection  |
-   * | SOUTH     | isNOfRiver  | (toX, toY)         | riverNSDirection  |
-   * | EAST      | isWOfRiver  | (toX, toY)         | riverWEDirection  |
-   * | WEST      | isWOfRiver  | (fromX, fromY)     | riverWEDirection  |
+   * | NORTH     | isWOfRiver  | (fromX, fromY)     | riverNSDirection  |
+   * | SOUTH     | isWOfRiver  | (toX, toY)         | riverNSDirection  |
+   * | EAST      | isNOfRiver  | (toX, toY)         | riverWEDirection  |
+   * | WEST      | isNOfRiver  | (fromX, fromY)     | riverWEDirection  |
    */
   _placeRiverEdge(fromX, fromY, toX, toY, direction, flowDir, rivers) {
     const W = this.iNumPlotsX;
 
     switch (direction) {
       case CARDINAL.NORTH: {
+        // Right/east vertical edge of FROM tile
         const idx = fromY * W + fromX;
-        rivers[idx].isNOfRiver = true;
+        rivers[idx].isWOfRiver = true;
         rivers[idx].riverNSDirection = flowDir;
         break;
       }
       case CARDINAL.SOUTH: {
+        // Right/east vertical edge of TO tile
         if (toY < this.iNumPlotsY) {
           const idx = toY * W + toX;
-          rivers[idx].isNOfRiver = true;
+          rivers[idx].isWOfRiver = true;
           rivers[idx].riverNSDirection = flowDir;
         }
         break;
       }
       case CARDINAL.EAST: {
+        // Bottom/south horizontal edge of TO tile
         const idx = toY * W + toX;
-        rivers[idx].isWOfRiver = true;
+        rivers[idx].isNOfRiver = true;
         rivers[idx].riverWEDirection = flowDir;
         break;
       }
       case CARDINAL.WEST: {
+        // Bottom/south horizontal edge of FROM tile
         const idx = fromY * W + fromX;
-        rivers[idx].isWOfRiver = true;
+        rivers[idx].isNOfRiver = true;
         rivers[idx].riverWEDirection = flowDir;
         break;
       }
@@ -589,18 +597,17 @@ export class RiverGenerator {
   }
 
   /**
-   * Compute flow direction for a river edge based on Civ4's direction tables.
+   * Compute flow direction for a river edge.
+   * Returns the direction water flows along the placed edge segment.
+   *   NORTH/SOUTH movements → vertical (isWOfRiver) edge → N or S flow
+   *   EAST/WEST movements   → horizontal (isNOfRiver) edge → E or W flow
    */
-  _getFlowDirection(lastDir, nextDir) {
+  _getFlowDirection(lastDir, _nextDir) {
     switch (lastDir) {
-      case CARDINAL.NORTH:
-        return (nextDir === CARDINAL.EAST) ? FLOW.EAST : FLOW.WEST;
-      case CARDINAL.SOUTH:
-        return (nextDir === CARDINAL.WEST) ? FLOW.WEST : FLOW.EAST;
-      case CARDINAL.EAST:
-        return (nextDir === CARDINAL.SOUTH) ? FLOW.SOUTH : FLOW.NORTH;
-      case CARDINAL.WEST:
-        return (nextDir === CARDINAL.NORTH) ? FLOW.NORTH : FLOW.SOUTH;
+      case CARDINAL.NORTH: return FLOW.NORTH;
+      case CARDINAL.SOUTH: return FLOW.SOUTH;
+      case CARDINAL.EAST:  return FLOW.EAST;
+      case CARDINAL.WEST:  return FLOW.WEST;
     }
     return null;
   }
@@ -613,11 +620,12 @@ export class RiverGenerator {
    * Check if there's fresh water (a river) within range of (x,y).
    * Port of CvMap::findWater(pPlot, iRange, true).
    *
-   * A tile has fresh water if any of its 4 edges has a river segment:
-   * - isNOfRiver on this tile (north edge)
-   * - isWOfRiver on this tile (west edge)
-   * - isNOfRiver on south neighbor (south edge)
-   * - isWOfRiver on east neighbor (east edge)
+   * A tile has fresh water if any of its 4 edges has a river segment.
+   * Civ4-correct edge semantics:
+   *   isNOfRiver at (x,y)    = bottom edge of (x,y)
+   *   isWOfRiver at (x,y)    = right edge of (x,y)
+   *   isNOfRiver at (x,y-1)  = bottom of north neighbor = top edge of (x,y)
+   *   isWOfRiver at (x-1,y)  = right of west neighbor  = left edge of (x,y)
    *
    * @param {Object[]} rivers - 1D river data array
    * @param {number} x - Center X
@@ -641,17 +649,20 @@ export class RiverGenerator {
         }
         if (ny < 0 || ny >= H) continue;
 
-        // Check if this tile is adjacent to a river (isFreshWater)
+        // Own flags: bottom edge (isNOfRiver) and right edge (isWOfRiver)
         const r = rivers[ny * W + nx];
         if (r.isNOfRiver || r.isWOfRiver) return true;
 
-        // Also check south neighbor's north edge and east neighbor's west edge
-        if (ny + 1 < H && rivers[(ny + 1) * W + nx].isNOfRiver) return true;
+        // Top edge = north neighbor's bottom edge
+        if (ny - 1 >= 0 && rivers[(ny - 1) * W + nx].isNOfRiver) return true;
 
-        let ex = nx + 1;
-        if (this.wrapX) ex = ((ex % W) + W) % W;
-        if (ex < W) {
-          if (rivers[ny * W + ex].isWOfRiver) return true;
+        // Left edge = west neighbor's right edge
+        let wx = nx - 1;
+        if (this.wrapX) {
+          wx = ((wx % W) + W) % W;
+          if (rivers[ny * W + wx].isWOfRiver) return true;
+        } else if (wx >= 0) {
+          if (rivers[ny * W + wx].isWOfRiver) return true;
         }
       }
     }
@@ -729,24 +740,29 @@ export class RiverGenerator {
 
   /**
    * Check if a specific edge already has a river segment.
+   * Matches the Civ4-correct edge semantics used by _placeRiverEdge().
    */
   _edgeHasRiver(x, y, direction, rivers) {
     const W = this.iNumPlotsX;
 
     switch (direction) {
       case CARDINAL.NORTH:
-        return rivers[y * W + x].isNOfRiver;
+        // Right/east vertical edge of FROM tile (x,y)
+        return rivers[y * W + x].isWOfRiver;
       case CARDINAL.SOUTH: {
+        // Right/east vertical edge of TO tile (x, y+1)
         const sy = y + 1;
         if (sy >= this.iNumPlotsY) return false;
-        return rivers[sy * W + x].isNOfRiver;
+        return rivers[sy * W + x].isWOfRiver;
       }
       case CARDINAL.WEST:
-        return rivers[y * W + x].isWOfRiver;
+        // Bottom/south horizontal edge of FROM tile (x,y)
+        return rivers[y * W + x].isNOfRiver;
       case CARDINAL.EAST: {
+        // Bottom/south horizontal edge of TO tile (x+1, y)
         const ex = this._wrapX(x + 1);
         if (!this.wrapX && ex >= this.iNumPlotsX) return false;
-        return rivers[y * W + ex].isWOfRiver;
+        return rivers[y * W + ex].isNOfRiver;
       }
     }
     return false;

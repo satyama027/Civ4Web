@@ -248,14 +248,15 @@ function to2D(arr, W, H) {
 
 function tileHasRiver(rivers, x, y, W, H) {
   const r = rivers[y][x];
+  // Own edges: bottom (isNOfRiver) and right (isWOfRiver)
   if (r.isNOfRiver || r.isWOfRiver) return true;
 
-  // East neighbor's west edge (= this tile's east edge)
-  const ex = (x + 1) % W;
-  if (rivers[y][ex].isWOfRiver) return true;
+  // Top edge = north neighbor's bottom edge
+  if (y - 1 >= 0 && rivers[y - 1][x].isNOfRiver) return true;
 
-  // South neighbor's north edge (= this tile's south edge)
-  if (y + 1 < H && rivers[y + 1][x].isNOfRiver) return true;
+  // Left edge = west neighbor's right edge
+  const wx = ((x - 1) % W + W) % W;
+  if (rivers[y][wx].isWOfRiver) return true;
 
   return false;
 }
@@ -308,11 +309,13 @@ function buildFinalMapData(W, H, plots2D, terrain2D, features2D, resources2D,
         isLake: lakes2D ? lakes2D[y][wx] : false,
         hasGoodyHut: goodies2D ? goodies2D[y][wx] : false,
 
-        // River edges — map new field names to legacy names
+        // River edges
+        // isNOfRiver = bottom horizontal edge; flow stored in riverWEDirection (E or W)
+        // isWOfRiver = right vertical edge;    flow stored in riverNSDirection (N or S)
         isNOfRiver: river.isNOfRiver,
         isWOfRiver: river.isWOfRiver,
-        riverFlowN: river.riverNSDirection,
-        riverFlowW: river.riverWEDirection
+        riverFlowN: river.riverWEDirection,
+        riverFlowW: river.riverNSDirection
       };
     },
 
