@@ -17,7 +17,7 @@ import { CyFractal } from '../CyFractal.js';
 import { PLOT } from '../FractalWorld.js';
 import { MultilayeredFractal } from '../MultilayeredFractal.js';
 import { TerrainGenerator, TERRAIN } from '../TerrainGenerator.js';
-import { FeatureGenerator } from '../FeatureGenerator.js';
+import { FeatureGenerator, FEATURE } from '../FeatureGenerator.js';
 import { RiverGenerator } from '../RiverGenerator.js';
 import { BonusGenerator } from '../BonusGenerator.js';
 
@@ -191,6 +191,38 @@ class OasisFeatureGenerator extends FeatureGenerator {
   getLatitudeAtPlot(_x, y) {
     return Math.max(0.0, Math.min(1.0, y / this.iNumPlotsY));
   }
+
+  // D3 fix: override addFeaturesAtPlot to match Oasis.py's custom placement:
+  //   - No ice (Oasis maps have no polar ice)
+  //   - No generic XML features (Oasis.py override skips addGenericFeaturesAtPlot)
+  //   - Jungle: south band only (lat < 0.16)
+  //   - Forest: fertile bands only (lat < 0.30 or lat > 0.71), not in oasis zone
+  //   - Oasis feature: 1/9 probability on flat desert in lat 0.30–0.71
+  //     (original: mapRand.get(9, "Add Extra Oases PYTHON") == 0, Oasis.py line 572)
+  addFeaturesAtPlot(x, y, plotTypes, terrain, features, rng) {
+    const W = this.iNumPlotsX;
+    const idx = y * W + x;
+    const lat = this.getLatitudeAtPlot(x, y);
+
+    // Jungle: south band lat < 0.16 only
+    if (features[idx] === FEATURE.NONE && lat < 0.16) {
+      this.addJunglesAtPlot(x, y, lat, plotTypes, terrain, features);
+    }
+
+    // Forest: outside oasis zone (lat < 0.30 or lat > 0.71)
+    if (features[idx] === FEATURE.NONE && (lat < 0.30 || lat > 0.71)) {
+      this.addForestsAtPlot(x, y, lat, plotTypes, terrain, features);
+    }
+
+    // Oasis feature: flat desert in oasis zone, 1/9 probability
+    if (features[idx] === FEATURE.NONE &&
+        lat > 0.30 && lat < 0.71 &&
+        plotTypes[idx] === PLOT.LAND &&
+        terrain[idx] === TERRAIN.DESERT &&
+        rng.nextInt(0, 8) === 0) {
+      features[idx] = FEATURE.OASIS;
+    }
+  }
 }
 
 // ============================================================================
@@ -209,15 +241,26 @@ function addNileRivers(rng, plotTypes1D, terrain1D, W, H, mapSize) {
   };
   const maxShift = maxShiftTable[mapSize] || 5;
 
-  // 4 rivers, one per quadrant
-  const quadrants = [
-    { startX: Math.floor(W * 0.25), startY: 0 },
-    { startX: Math.floor(W * 0.75), startY: 0 },
-    { startX: Math.floor(W * 0.25), startY: Math.floor(H * 0.5) },
-    { startX: Math.floor(W * 0.75), startY: Math.floor(H * 0.5) }
+  // D2 fix: 4 evenly-spaced quadrant centers (Oasis.py lines 951-956)
+  // Original: W/8, W/8+W/4, W/8+W/2, W/8+3W/4  (not W/4 duplicates)
+  // All 4 rivers start near south edge (y ≈ 2), not rivers 3&4 at H/2
+  const centers = [
+    Math.floor(W / 8),
+    Math.floor(W / 8 + W / 4),
+    Math.floor(W / 8 + W / 2),
+    Math.floor(W / 8 + 3 * W / 4)
   ];
 
-  for (const { startX, startY } of quadrants) {
+  const startRangeBottom = 2;
+  const startRangeTop = Math.max(startRangeBottom, Math.floor(H / 6));
+  const vertRand  = Math.max(1, startRangeTop - startRangeBottom + 1);
+  const horzRand  = Math.max(1, 2 * maxShift + 1);
+
+  for (const center of centers) {
+    const left   = center - maxShift;
+    const startX = Math.max(0, Math.min(W - 1, left + rng.nextInt(0, horzRand - 1)));
+    const startY = startRangeBottom + rng.nextInt(0, vertRand - 1);
+
     let x = startX;
     let y = startY;
 
@@ -293,7 +336,19 @@ export default {
   minStartingDistanceModifier() { return -35; },
   customOptions: [],
 
-  getGridSize() { return null; },
+  // D1 fix: return correct Oasis.py grid sizes instead of null
+  // Original Oasis.py lines 122-134 (grid_sizes dict)
+  getGridSize(mapSize) {
+    const sizes = {
+      duel:     { width: 6,  height: 4  },
+      tiny:     { width: 8,  height: 5  },
+      small:    { width: 10, height: 6  },
+      standard: { width: 14, height: 9  },
+      large:    { width: 18, height: 11 },
+      huge:     { width: 23, height: 14 }
+    };
+    return sizes[mapSize] ?? sizes.standard;
+  },
 
   beforeInit(settings) {
     this._mapSize = settings.mapSize;

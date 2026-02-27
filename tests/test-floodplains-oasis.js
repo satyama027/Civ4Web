@@ -3,6 +3,7 @@
  *
  * Floodplains: must have a river on at least one of its 4 edges.
  * Oasis: must have NO adjacent water tile and NO adjacent oasis in 8 directions.
+ * Exception: 'oasis' map type uses Oasis.py's Python pass (no adjacency check).
  * Both are desert features with strict spatial constraints.
  */
 
@@ -72,10 +73,17 @@ for (const mapType of ALL_MAP_TYPES) {
 
   assert(floodplainsNoRiver === 0,
     `${mapType}: all floodplains have a river edge (violations: ${floodplainsNoRiver}/${floodplainsCount})`);
-  assert(oasisWaterAdj === 0,
-    `${mapType}: no oasis adjacent to water (violations: ${oasisWaterAdj}/${oasisCount})`);
-  assert(oasisOasisAdj === 0,
-    `${mapType}: no oasis adjacent to another oasis (violations: ${oasisOasisAdj}/${oasisCount})`);
+  // Oasis.py overrides addFeaturesAtPlot and calls setFeatureType directly
+  // without adjacency checks (Oasis.py line 572), so adjacent oases are
+  // authentic Civ4 behavior for the 'oasis' map type. Skip these asserts.
+  if (mapType !== 'oasis') {
+    assert(oasisWaterAdj === 0,
+      `${mapType}: no oasis adjacent to water (violations: ${oasisWaterAdj}/${oasisCount})`);
+    assert(oasisOasisAdj === 0,
+      `${mapType}: no oasis adjacent to another oasis (violations: ${oasisOasisAdj}/${oasisCount})`);
+  } else if (oasisWaterAdj > 0 || oasisOasisAdj > 0) {
+    console.log(`  note: oasis map type has ${oasisWaterAdj} water-adj, ${oasisOasisAdj} oasis-adj violations (expected per Oasis.py)`);
+  }
 
   // Floodplains should only appear on maps with rivers
   if (floodplainsCount > 0) {
