@@ -90,12 +90,6 @@ const Game = () => {
 
     const canvas = canvasRef.current;
 
-    // Size canvas to container
-    if (containerRef.current) {
-      canvas.width = containerRef.current.clientWidth;
-      canvas.height = containerRef.current.clientHeight;
-    }
-
     const babylon = createScene(canvas, mapData);
     const material = createTerrainMaterial(babylon.scene, mapData);
     const { mesh, positions } = buildTerrainMesh(babylon.scene, mapData, TERRAIN_RGB, material);
@@ -119,7 +113,19 @@ const Game = () => {
 
     babylonRef.current = { ...babylon, features, picker, edgeScroller };
 
+    const rafId = requestAnimationFrame(() => {
+      if (babylonRef.current) babylonRef.current.resetCamera();
+    });
+
+    const ro = new ResizeObserver(() => {
+      babylon.engine.resize();
+      babylon.resetCamera();
+    });
+    ro.observe(containerRef.current);
+
     return () => {
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
       edgeScroller.dispose();
       picker.dispose();
       features.dispose();

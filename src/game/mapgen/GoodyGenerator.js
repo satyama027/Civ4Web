@@ -14,6 +14,7 @@
 
 import { PLOT } from './FractalWorld.js';
 import { FEATURE } from './FeatureGenerator.js';
+import { TERRAIN } from './TerrainGenerator.js';
 
 // ============================================================================
 // GOODY GENERATOR CLASS
@@ -112,10 +113,10 @@ export class GoodyGenerator {
       }
       if (tooCloseToStart) continue;
 
-      // Check spacing against already-placed huts
+      // Check spacing against already-placed huts (Chebyshev, matching Civ4 iGoodyRange square check)
       let tooCloseToHut = false;
       for (const p of placed) {
-        if (this._manhattanDist(c.x, c.y, p.x, p.y) < this.minSpacing) {
+        if (this._chebyshevDist(c.x, c.y, p.x, p.y) < this.minSpacing) {
           tooCloseToHut = true;
           break;
         }
@@ -140,7 +141,7 @@ export class GoodyGenerator {
    * @param {string|null} bonus - Bonus resource ID or null
    * @returns {boolean} True if a goody hut can be placed here
    */
-  canPlaceGoodyAt(_x, _y, plotType, _terrain, feature, bonus) {
+  canPlaceGoodyAt(_x, _y, plotType, terrain, feature, bonus) {
     // Only land or hills (not peaks, ocean, coast)
     if (plotType !== PLOT.LAND && plotType !== PLOT.HILLS) return false;
 
@@ -150,11 +151,20 @@ export class GoodyGenerator {
     // No goody on ice or flood plains
     if (feature === FEATURE.ICE || feature === FEATURE.FLOODPLAINS) return false;
 
+    // Terrain/feature must be Civ4-valid for IMPROVEMENT_GOODY_HUT
+    // TerrainMakesValids: GRASSLAND, PLAINS, DESERT, TUNDRA
+    // FeatureMakesValids: JUNGLE, FOREST
+    const validTerrain = terrain === TERRAIN.GRASSLAND || terrain === TERRAIN.PLAINS
+                      || terrain === TERRAIN.DESERT   || terrain === TERRAIN.TUNDRA;
+    const validFeature = feature === FEATURE.JUNGLE || feature === FEATURE.FOREST;
+    if (!validTerrain && !validFeature) return false;
+
     return true;
   }
 
   /**
    * Manhattan distance with world wrap support.
+   * Used for startExclusion checks (our own addition, not in Civ4).
    */
   _manhattanDist(x1, y1, x2, y2) {
     let dx = Math.abs(x1 - x2);
@@ -164,5 +174,17 @@ export class GoodyGenerator {
     if (this.wrapY) dy = Math.min(dy, this.iNumPlotsY - dy);
 
     return dx + dy;
+  }
+
+  /**
+   * Chebyshev distance with world wrap support.
+   * Used for goody-goody spacing, matching Civ4's square iGoodyRange check.
+   */
+  _chebyshevDist(x1, y1, x2, y2) {
+    let dx = Math.abs(x1 - x2);
+    if (this.wrapX) dx = Math.min(dx, this.iNumPlotsX - dx);
+    let dy = Math.abs(y1 - y2);
+    if (this.wrapY) dy = Math.min(dy, this.iNumPlotsY - dy);
+    return Math.max(dx, dy);
   }
 }

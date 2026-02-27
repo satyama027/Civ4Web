@@ -1,7 +1,7 @@
 /* Game.css - Game screen with map visualization */
 
 .game-container {
-  min-height: 100vh;
+  height: 100%;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
@@ -74,6 +74,7 @@
 /* Main content */
 .game-content {
   flex: 1;
+  min-height: 0;
   display: flex;
   overflow: hidden;
 }
@@ -81,6 +82,7 @@
 /* Map container */
 .map-container {
   flex: 1;
+  min-height: 0;
   position: relative;
   overflow: hidden;
   background: #0a0e1a;

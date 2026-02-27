@@ -534,6 +534,202 @@ console.log('\n=== Test 11: Extra Peaks Compensation by Landmass Type (10 seeds 
 }
 
 // =============================================================================
+// Test 12: Minimum Separation Between Starts (all subtypes, 20 seeds)
+// =============================================================================
+
+console.log('\n=== Test 12: Minimum Separation Between Starts (all subtypes, 20 seeds) ===');
+{
+  const minDist = 4;
+  const subtypes = [
+    { name: 'snaky',        customOption: 0 },
+    { name: 'archipelago',  customOption: 1 },
+    { name: 'tiny_islands', customOption: 2 }
+  ];
+  let totalViolations = 0;
+
+  for (const t of subtypes) {
+    let violations = 0;
+    for (let seed = 1; seed <= REUSE_SEEDS; seed++) {
+      const map = generateTestMap('archipelago', { seed, customOption: t.customOption });
+      const W = map.width;
+      const starts = (map.startingLocations || []).filter(s => s != null);
+
+      for (let i = 0; i < starts.length; i++) {
+        for (let j = i + 1; j < starts.length; j++) {
+          let ddx = Math.abs(starts[i].x - starts[j].x);
+          if (ddx > W / 2) ddx = W - ddx;
+          const ddy = Math.abs(starts[i].y - starts[j].y);
+          if (ddx + ddy < minDist) {
+            violations++;
+            console.log(`    ${t.name} seed ${seed}: starts (${starts[i].x},${starts[i].y}) and (${starts[j].x},${starts[j].y}) dist=${ddx+ddy} < ${minDist}`);
+          }
+        }
+      }
+    }
+    console.log(`  ${t.name}: ${violations} separation violations across ${REUSE_SEEDS} seeds`);
+    totalViolations += violations;
+  }
+
+  assert(totalViolations === 0,
+    `0 pairs of starts with Manhattan distance < ${minDist}, across all ${REUSE_SEEDS} seeds × 3 subtypes (got ${totalViolations} violations)`);
+}
+
+// =============================================================================
+// Test 13: Ocean Adjacency Hard Constraint (all subtypes, 20 seeds)
+// =============================================================================
+
+console.log('\n=== Test 13: Ocean Adjacency Hard Constraint (all subtypes, 20 seeds) ===');
+{
+  const adjOffsets = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
+  const subtypes = [
+    { name: 'snaky',        customOption: 0 },
+    { name: 'archipelago',  customOption: 1 },
+    { name: 'tiny_islands', customOption: 2 }
+  ];
+  let totalStarts = 0;
+  let totalNearWater = 0;
+
+  for (const t of subtypes) {
+    let subtypeStarts = 0;
+    let subtypeNearWater = 0;
+    for (let seed = 1; seed <= REUSE_SEEDS; seed++) {
+      const map = generateTestMap('archipelago', { seed, customOption: t.customOption });
+      const W = map.width;
+      const H = map.height;
+      const starts = (map.startingLocations || []).filter(s => s != null);
+
+      for (const s of starts) {
+        subtypeStarts++;
+        let hasWater = false;
+        for (const [adx, ady] of adjOffsets) {
+          let ax = ((s.x + adx) % W + W) % W;
+          const ay = s.y + ady;
+          if (ay < 0 || ay >= H) continue;
+          const nb = map.getTile(ax, ay);
+          if (nb && (nb.plot === PLOT.OCEAN || nb.isCoast)) { hasWater = true; break; }
+        }
+        if (hasWater) subtypeNearWater++;
+        else console.log(`    ${t.name} seed ${seed}: start (${s.x},${s.y}) not adjacent to water`);
+      }
+    }
+    const rate = subtypeStarts > 0 ? subtypeNearWater / subtypeStarts : 0;
+    console.log(`  ${t.name}: ${subtypeNearWater}/${subtypeStarts} starts adjacent to water (${(rate * 100).toFixed(0)}%)`);
+    totalStarts += subtypeStarts;
+    totalNearWater += subtypeNearWater;
+  }
+
+  const rate = totalStarts > 0 ? totalNearWater / totalStarts : 0;
+  assert(rate === 1.0,
+    `100% of all starts adjacent to water across all subtypes (got ${(rate * 100).toFixed(0)}%: ${totalNearWater}/${totalStarts})`);
+}
+
+// =============================================================================
+// Test 14: Snaky and Tiny Islands Start Validity (20 seeds each)
+// =============================================================================
+
+console.log('\n=== Test 14: Snaky and Tiny Islands Start Validity (20 seeds each) ===');
+{
+  for (const t of [{ name: 'snaky', customOption: 0 }, { name: 'tiny_islands', customOption: 2 }]) {
+    let allOnLand = 0;
+    let noDuplicates = 0;
+    let diverseIslands = 0;
+
+    for (let seed = 1; seed <= REUSE_SEEDS; seed++) {
+      const map = generateTestMap('archipelago', { seed, customOption: t.customOption });
+      const starts = (map.startingLocations || []).filter(s => s != null);
+      if (starts.length === 0) continue;
+
+      let onLand = true;
+      for (const s of starts) {
+        const tile = map.getTile(s.x, s.y);
+        if (!tile || !tile.isLand || tile.isPeak) {
+          onLand = false;
+          console.log(`    ${t.name} seed ${seed}: start (${s.x},${s.y}) not on valid land`);
+          break;
+        }
+      }
+      if (onLand) allOnLand++;
+
+      const posKeys = new Set(starts.map(s => `${s.x},${s.y}`));
+      if (posKeys.size === starts.length) noDuplicates++;
+      else console.log(`    ${t.name} seed ${seed}: duplicate start positions (${posKeys.size} unique of ${starts.length})`);
+
+      const landmasses = findLandmasses(map);
+      const islandSet = new Set();
+      for (const s of starts) {
+        for (let i = 0; i < landmasses.length; i++) {
+          if (landmasses[i].tiles.has(`${s.x},${s.y}`)) { islandSet.add(i); break; }
+        }
+      }
+      if (islandSet.size >= 3) diverseIslands++;
+      else console.log(`    ${t.name} seed ${seed}: only ${islandSet.size} distinct islands for ${starts.length} players`);
+    }
+
+    const rateLand = allOnLand / REUSE_SEEDS;
+    const rateDups = noDuplicates / REUSE_SEEDS;
+    const rateDiverse = diverseIslands / REUSE_SEEDS;
+    console.log(`  ${t.name}: land=${(rateLand*100).toFixed(0)}% dups=${(rateDups*100).toFixed(0)}% diverse=${(rateDiverse*100).toFixed(0)}%`);
+
+    assert(rateLand === 1.0,
+      `${t.name}: 100% of seeds all starts on valid land (got ${(rateLand*100).toFixed(0)}%)`);
+    assert(rateDups === 1.0,
+      `${t.name}: 100% of seeds no duplicate positions (got ${(rateDups*100).toFixed(0)}%)`);
+    assert(rateDiverse >= 0.80,
+      `${t.name}: >= 80% of seeds at least 3 distinct islands (got ${(rateDiverse*100).toFixed(0)}%)`);
+  }
+}
+
+// =============================================================================
+// Test 15: More Players Than Regions Handled Correctly
+// =============================================================================
+
+console.log('\n=== Test 15: More Players Than Regions Handled Correctly (duel map, 20 seeds) ===');
+{
+  // duel + tiny_islands: small map may produce fewer regions than players,
+  // exercising the numPlayers > numRegions fallback path (region reuse).
+  let totalStarts = 0;
+  let totalValid = 0;
+  let duplicateSeeds = 0;
+
+  for (let seed = 1; seed <= REUSE_SEEDS; seed++) {
+    const map = generateTestMap('archipelago', {
+      seed,
+      mapSize: 'duel',
+      numPlayers: 6,
+      customOption: 2  // tiny_islands
+    });
+    const starts = (map.startingLocations || []).filter(s => s != null);
+
+    // All starts on valid land
+    let valid = true;
+    for (const s of starts) {
+      totalStarts++;
+      const tile = map.getTile(s.x, s.y);
+      if (!tile || !tile.isLand || tile.isPeak) {
+        valid = false;
+        console.log(`    seed ${seed}: start (${s.x},${s.y}) not on valid land`);
+      } else {
+        totalValid++;
+      }
+    }
+
+    // No duplicate positions
+    const posKeys = new Set(starts.map(s => `${s.x},${s.y}`));
+    if (posKeys.size < starts.length) {
+      duplicateSeeds++;
+      console.log(`    seed ${seed}: duplicate starts (${posKeys.size} unique of ${starts.length})`);
+    }
+  }
+
+  console.log(`  Valid starts: ${totalValid}/${totalStarts}`);
+  console.log(`  Seeds with duplicates: ${duplicateSeeds}/${REUSE_SEEDS}`);
+  assert(totalValid === totalStarts,
+    `all starts on valid land even when numPlayers > numRegions (${totalValid}/${totalStarts} valid)`);
+  assert(duplicateSeeds === 0,
+    `0 seeds with duplicate start positions when numPlayers > numRegions (got ${duplicateSeeds})`);
+}
+
+// =============================================================================
 // Results
 // =============================================================================
 

@@ -118,9 +118,14 @@ function scoreRegion(cx, cy, radius, plotTypes1D, terrain1D, features1D,
 
 /**
  * Find the best starting tile within a region radius.
+ * Skips tiles already too close to an existing start (minDist=4 Manhattan),
+ * and skips tiles not adjacent to any water tile (Civ4 ocean-adjacency requirement).
  */
 function findBestTileInRadius(cx, cy, radius, plotTypes1D, terrain1D,
-                               features1D, bonuses1D, W, H, wrapX) {
+                               features1D, bonuses1D, W, H, wrapX,
+                               existingStarts = []) {
+  const minDist = 4;
+  const adjOffsets = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
   let bestScore = -Infinity;
   let bestTile = null;
 
@@ -135,6 +140,30 @@ function findBestTileInRadius(cx, cy, radius, plotTypes1D, terrain1D,
       const idx = ny * W + nx;
       const plot = plotTypes1D[idx];
       if (plot === PLOT.OCEAN || plot === PLOT.PEAK) continue;
+
+      // Skip tiles too close to already-placed starts (Fix 1: deduplication)
+      let tooClose = false;
+      for (const s of existingStarts) {
+        if (!s) continue;
+        let ddx = Math.abs(nx - s.x);
+        if (wrapX && ddx > W / 2) ddx = W - ddx;
+        const ddy = Math.abs(ny - s.y);
+        if (ddx + ddy < minDist) { tooClose = true; break; }
+      }
+      if (tooClose) continue;
+
+      // Skip tiles not adjacent to any water tile (Fix 2: ocean adjacency)
+      let hasWater = false;
+      for (const [adx, ady] of adjOffsets) {
+        let ax = nx + adx;
+        const ay = ny + ady;
+        if (wrapX) ax = ((ax % W) + W) % W;
+        else if (ax < 0 || ax >= W) continue;
+        if (ay < 0 || ay >= H) continue;
+        const ap = plotTypes1D[ay * W + ax];
+        if (ap === PLOT.OCEAN || ap === PLOT.COAST) { hasWater = true; break; }
+      }
+      if (!hasWater) continue;
 
       const score = scoreCitySite(nx, ny, plotTypes1D, terrain1D,
                                    features1D, bonuses1D, W, H, wrapX);
@@ -240,13 +269,13 @@ function assignStartsArchipelago(numPlayers, regions, plotTypes1D, terrain1D,
 
     let best = findBestTileInRadius(region.x, region.y, radius,
                                      plotTypes1D, terrain1D, features1D,
-                                     bonuses1D, W, H, wrapX);
+                                     bonuses1D, W, H, wrapX, starts);
 
     // If no land tile in radius, try wider search (double radius)
     if (!best) {
       best = findBestTileInRadius(region.x, region.y, radius * 2,
                                    plotTypes1D, terrain1D, features1D,
-                                   bonuses1D, W, H, wrapX);
+                                   bonuses1D, W, H, wrapX, starts);
     }
 
     // If still no land tile, scan entire map for best unclaimed land tile

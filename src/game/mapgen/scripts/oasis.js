@@ -231,17 +231,17 @@ function addNileRivers(rng, plotTypes1D, terrain1D, W, H, mapSize) {
       if (roll < 0.60) {
         // North: place river on north edge
         rivers1D[idx].isNOfRiver = true;
-        rivers1D[idx].riverNSDirection = rng.next() < 0.5 ? 'E' : 'W';
+        rivers1D[idx].riverWEDirection = rng.next() < 0.5 ? 'E' : 'W';
         y++;
       } else if (roll < 0.80) {
         // West
         if (x - 1 >= 0) {
           rivers1D[idx].isWOfRiver = true;
-          rivers1D[idx].riverWEDirection = 'N';
+          rivers1D[idx].riverNSDirection = 'N';
           x--;
         } else {
           rivers1D[idx].isNOfRiver = true;
-          rivers1D[idx].riverNSDirection = 'W';
+          rivers1D[idx].riverWEDirection = 'W';
           y++;
         }
       } else {
@@ -249,11 +249,11 @@ function addNileRivers(rng, plotTypes1D, terrain1D, W, H, mapSize) {
         if (x + 1 < W) {
           const eidx = y * W + (x + 1);
           rivers1D[eidx].isWOfRiver = true;
-          rivers1D[eidx].riverWEDirection = 'N';
+          rivers1D[eidx].riverNSDirection = 'N';
           x++;
         } else {
           rivers1D[idx].isNOfRiver = true;
-          rivers1D[idx].riverNSDirection = 'E';
+          rivers1D[idx].riverWEDirection = 'E';
           y++;
         }
       }

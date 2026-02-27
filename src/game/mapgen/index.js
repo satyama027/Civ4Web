@@ -577,7 +577,7 @@ export function generateMap(settings) {
     W, H, plots2D, terrain2D, features2D, resources2D,
     rivers2D, lakes2D, goodies2D, starts,
     heightmap,
-    { mapType, mapSize, climate, seaLevel, numPlayers: clampedPlayers },
+    { mapType, mapSize, climate, seaLevel, numPlayers: clampedPlayers, wrapX, wrapY },
     seed,
     humansOnSameTile
   );

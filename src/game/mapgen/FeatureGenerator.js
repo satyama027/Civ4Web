@@ -52,7 +52,7 @@ export const FEATURE = {
  */
 const FEATURE_RULES = {
   [FEATURE.ICE]: {
-    allowedPlots: [PLOT.OCEAN],
+    allowedPlots: [PLOT.OCEAN, PLOT.COAST],
     allowedTerrains: null  // any water terrain
   },
   [FEATURE.JUNGLE]: {
@@ -102,7 +102,7 @@ export class FeatureGenerator {
    * @param {number} [settings.iForestPercent=60] - Top % of forest fractal eligible for forest
    * @param {number} [settings.jungle_grain=5] - Base grain for jungle fractal
    * @param {number} [settings.forest_grain=6] - Base grain for forest fractal
-   * @param {number} [settings.jungleLatitude=0.15] - Latitude falloff rate for jungle (from climate: tropical=0.40, temperate=0.15)
+   * @param {number} [settings.jungleLatitude=0.15] - Max latitude for jungle (hard cutoff). jungleLatitude=0.00 (Ice Age) = no jungle anywhere.
    * @param {number} [settings.fracXExp=7] - Fractal X-axis resolution exponent
    * @param {number} [settings.fracYExp=6] - Fractal Y-axis resolution exponent
    * @param {boolean} [settings.wrapX=true] - Whether map wraps horizontally
@@ -114,15 +114,16 @@ export class FeatureGenerator {
     this.iNumPlotsY = mapHeight;
 
     // Feature distribution parameters (Civ4 defaults)
-    this.iJunglePercent = settings.iJunglePercent || 80;
-    this.iForestPercent = settings.iForestPercent || 60;
+    this.iJunglePercent = settings.iJunglePercent ?? 80;
+    this.iForestPercent = settings.iForestPercent ?? 60;
 
     // Fractal grain
-    this.jungle_grain = settings.jungle_grain || 5;
-    this.forest_grain = settings.forest_grain || 6;
+    this.jungle_grain = settings.jungle_grain ?? 5;
+    this.forest_grain = settings.forest_grain ?? 6;
 
-    // Jungle latitude falloff (from Civ4 climate XML: getJungleLatitude())
-    this.jungleLatitude = settings.jungleLatitude || 0.15;
+    // Jungle max latitude (hard cutoff — from Civ4 climate XML: getJungleLatitude())
+    // jungleLatitude=0.00 (Ice Age, arid, cold) → no jungle anywhere
+    this.jungleLatitude = settings.jungleLatitude ?? 0.15;
 
     // Ice latitude parameter (from CIV4ClimateInfo.xml fRandIceLatitude)
     // NOT random — this is a fixed climate parameter despite the name
@@ -243,15 +244,12 @@ export class FeatureGenerator {
     this.initFractals(rng);
 
     // 2. Compute thresholds
-    // Civ4: jungle band is CENTERED — (100-80)/2 = 10th to (100+80)/2 = 90th percentile
-    this._iJungleBottom = this.jungleFrac.getHeightFromPercent(
-      Math.floor((100 - this.iJunglePercent) / 2)
-    );
-    this._iJungleTop = this.jungleFrac.getHeightFromPercent(
-      Math.floor((100 + this.iJunglePercent) / 2)
-    );
-    // Civ4: iForestLevel = getHeightFromPercent(iForestPercent) → top 40% gets forest
-    this._iForestLevel = this.forestFrac.getHeightFromPercent(this.iForestPercent);
+    // Civ4: jungle band is [0th, iJunglePercent] — bottom 80% of fractal
+    this._iJungleBottom = this.jungleFrac.getHeightFromPercent(0);
+    this._iJungleTop    = this.jungleFrac.getHeightFromPercent(this.iJunglePercent);
+    // Civ4: iForestLevel = getHeightFromPercent(100 - iForestPercent)
+    // With iForestPercent=60: threshold = 40th percentile → top 60% gets forest
+    this._iForestLevel = this.forestFrac.getHeightFromPercent(100 - this.iForestPercent);
 
     // 3. Use climate ice latitude parameter (from CIV4ClimateInfo.xml fRandIceLatitude)
     // This is a fixed climate parameter, NOT randomly generated
@@ -417,8 +415,8 @@ export class FeatureGenerator {
     const H = this.iNumPlotsY;
     const idx = y * W + x;
 
-    // canHaveFeature check (ice only on water)
-    if (!this.canHaveFeature(FEATURE.ICE, plotTypes[idx], null)) return;
+    // Ice eligible on both OCEAN and COAST (Civ4: isWater() = true for both)
+    if (plotTypes[idx] !== PLOT.OCEAN && plotTypes[idx] !== PLOT.COAST) return;
 
     // Civ4: Edge ice only for specific wrap configurations
     if (this.wrapX && !this.wrapY) {
@@ -473,6 +471,10 @@ export class FeatureGenerator {
 
     // canHaveFeature check (jungle: land/hills + grassland)
     if (!this.canHaveFeature(FEATURE.JUNGLE, plotTypes[idx], terrain[idx])) return;
+
+    // Hard latitude cutoff (original Python: "if lat < jungleLatitude")
+    // jungleLatitude=0.00 (Ice Age) → no tile qualifies → zero jungle
+    if (_lat >= this.jungleLatitude) return;
 
     // Latitude-adjusted bottom threshold
     // At equator (lat=0): adjustedBottom = iJungleBottom → maximum jungle range
@@ -568,8 +570,8 @@ export class FeatureGenerator {
         }
 
         const nIdx = ny * W + nx;
-        // No oasis adjacent to water
-        if (plotTypes[nIdx] === PLOT.OCEAN) return;
+        // No oasis adjacent to water (bNoCoast=1 in Civ4 XML: blocks both OCEAN and COAST)
+        if (plotTypes[nIdx] === PLOT.OCEAN || plotTypes[nIdx] === PLOT.COAST) return;
         // No oasis adjacent to another oasis
         if (features[nIdx] === FEATURE.OASIS) return;
       }
@@ -623,24 +625,23 @@ export class FeatureGenerator {
    */
   _tileHasRiver(rivers, x, y) {
     const W = this.iNumPlotsX;
-    const H = this.iNumPlotsY;
     const idx = y * W + x;
 
-    // Check this tile's north and west edges
+    // Own edges: bottom/south (isNOfRiver) and right/east (isWOfRiver)
     const tile = rivers[idx];
     if (tile && (tile.isNOfRiver || tile.isWOfRiver)) return true;
 
-    // Check south neighbor's north edge (= this tile's south edge)
-    if (y < H - 1) {
-      const south = rivers[(y + 1) * W + x];
-      if (south && south.isNOfRiver) return true;
+    // Top/north edge = north neighbor's bottom edge (y-1)
+    if (y > 0) {
+      const north = rivers[(y - 1) * W + x];
+      if (north && north.isNOfRiver) return true;
     }
 
-    // Check east neighbor's west edge (= this tile's east edge)
-    const ex = this.wrapX ? (x + 1) % W : x + 1;
-    if (ex < W) {
-      const east = rivers[y * W + ex];
-      if (east && east.isWOfRiver) return true;
+    // Left/west edge = west neighbor's right edge (x-1)
+    const wx = this.wrapX ? ((x - 1 + W) % W) : x - 1;
+    if (this.wrapX || wx >= 0) {
+      const west = rivers[y * W + wx];
+      if (west && west.isWOfRiver) return true;
     }
 
     return false;

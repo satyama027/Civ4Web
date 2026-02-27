@@ -1104,7 +1104,7 @@ export class StartingPlots {
 
     // Add a simple river segment on this tile's north edge
     rivers[idx].isNOfRiver = true;
-    rivers[idx].riverNSDirection = rng.next() < 0.5 ? 'E' : 'W';
+    rivers[idx].riverWEDirection = rng.next() < 0.5 ? 'E' : 'W';
   }
 }
 

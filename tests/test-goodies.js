@@ -11,7 +11,7 @@
 
 import {
   generateTestMap, forEachTile, assert, reportResults,
-  ALL_MAP_TYPES, PLOT, FEATURE
+  ALL_MAP_TYPES, PLOT, FEATURE, TERRAIN
 } from './_test-utils.js';
 
 for (const mapType of ALL_MAP_TYPES) {
@@ -20,7 +20,7 @@ for (const mapType of ALL_MAP_TYPES) {
   const map = generateTestMap(mapType);
   const W = map.width;
   const H = map.height;
-  const wrapX = map.settings.mapType !== 'inland_sea';
+  const wrapX = map.settings.wrapX ?? true;
 
   const goodyPositions = [];
   let plotViolations = 0;
@@ -82,8 +82,45 @@ for (const mapType of ALL_MAP_TYPES) {
     `${mapType}: no goody on resource tile (violations: ${resourceViolations})`);
   assert(featureViolations === 0,
     `${mapType}: no goody on ICE/FLOODPLAINS (violations: ${featureViolations})`);
+
+  // Terrain/feature validity — matches Civ4 XML TerrainMakesValids / FeatureMakesValids
+  const VALID_GOODY_TERRAIN = new Set([
+    TERRAIN.GRASSLAND, TERRAIN.PLAINS, TERRAIN.DESERT, TERRAIN.TUNDRA
+  ]);
+  let terrainViolations = 0;
+  forEachTile(map, (tile) => {
+    if (!tile.hasGoodyHut) return;
+    const validTerrain = VALID_GOODY_TERRAIN.has(tile.terrain);
+    const validFeature = tile.feature === FEATURE.JUNGLE || tile.feature === FEATURE.FOREST;
+    if (!validTerrain && !validFeature) terrainViolations++;
+  });
+  assert(terrainViolations === 0,
+    `${mapType}: all goodies on valid Civ4 terrain (violations: ${terrainViolations})`);
+
   assert(spacingViolations === 0,
     `${mapType}: goody spacing ≥ 4 Manhattan (violations: ${spacingViolations})`);
+
+  // Chebyshev distance helper (mirrors Civ4 iGoodyRange square check)
+  function chebyshevDist(x1, y1, x2, y2) {
+    let dx = Math.abs(x1 - x2);
+    if (wrapX) dx = Math.min(dx, W - dx);
+    const dy = Math.abs(y1 - y2);
+    return Math.max(dx, dy);
+  }
+
+  let chebyshevViolations = 0;
+  for (let i = 0; i < goodyPositions.length; i++) {
+    for (let j = i + 1; j < goodyPositions.length; j++) {
+      if (chebyshevDist(
+            goodyPositions[i].x, goodyPositions[i].y,
+            goodyPositions[j].x, goodyPositions[j].y) < 4) {
+        chebyshevViolations++;
+      }
+    }
+  }
+  assert(chebyshevViolations === 0,
+    `${mapType}: goody spacing ≥ 4 Chebyshev/iGoodyRange (violations: ${chebyshevViolations})`);
+
   assert(startViolations === 0,
     `${mapType}: goody distance from starts ≥ 3 (violations: ${startViolations})`);
 

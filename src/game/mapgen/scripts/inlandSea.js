@@ -62,21 +62,17 @@ function generateInlandSeaPlots(W, H, seaLevelChange, climateConfig, rng) {
     wrapY: false
   });
 
-  // For a 4×2 grid:
-  // Set border cells (corners/edges) to land (high values)
-  // Set interior cells to ocean (low values)
-  // The 4×2 grid: all are border cells, so we set corners to land
-  // and the 2 inner-bottom + 2 inner-top to ocean for the sea effect
-  hw.setValue(0, 0, 200 + rng.nextInt(0, 54)); // bottom-left corner
-  hw.setValue(3, 0, 200 + rng.nextInt(0, 54)); // bottom-right corner
-  hw.setValue(0, 1, 200 + rng.nextInt(0, 54)); // top-left corner
-  hw.setValue(3, 1, 200 + rng.nextInt(0, 54)); // top-right corner
-
-  // Inner cells: ocean (creates the inland sea)
-  hw.setValue(1, 0, 0);
-  hw.setValue(2, 0, 0);
-  hw.setValue(1, 1, 0);
-  hw.setValue(2, 1, 0);
+  // IS is always non-wrapping → HintedWorld internally expands block grid by +1 in each
+  // dimension: (4+1)×(2+1) = 5×3. Fill border blocks with land (200+), interior with
+  // ocean (0) — matches Civ4 BTS Inland_Sea.py lines 616–626.
+  const bW = 5; // blockCols + 1
+  const bH = 3; // blockRows + 1
+  for (let bx = 0; bx < bW; bx++) {
+    for (let by = 0; by < bH; by++) {
+      const border = bx === 0 || bx === bW - 1 || by === 0 || by === bH - 1;
+      hw.setValue(bx, by, border ? 200 + rng.nextInt(0, 54) : 0);
+    }
+  }
 
   return hw.generatePlotTypes(rng, {
     water_percent: -1,
@@ -154,12 +150,12 @@ function addInlandSeaRivers(rng, plotTypes1D, terrain1D, W, H) {
           const nx = cx + 1;
           if (nx >= W) break;
           rivers1D[cy * W + nx].isWOfRiver = true;
-          rivers1D[cy * W + nx].riverWEDirection = dy >= 0 ? 'N' : 'S';
+          rivers1D[cy * W + nx].riverNSDirection = dy >= 0 ? 'N' : 'S';
           cx = nx;
         } else {
           // Moving west: place river on west edge of current tile
           rivers1D[idx].isWOfRiver = true;
-          rivers1D[idx].riverWEDirection = dy >= 0 ? 'N' : 'S';
+          rivers1D[idx].riverNSDirection = dy >= 0 ? 'N' : 'S';
           cx = cx - 1;
           if (cx < 0) break;
         }
@@ -168,7 +164,7 @@ function addInlandSeaRivers(rng, plotTypes1D, terrain1D, W, H) {
         if (dy > 0) {
           // Moving north (increasing y): place river on north edge
           rivers1D[idx].isNOfRiver = true;
-          rivers1D[idx].riverNSDirection = dx >= 0 ? 'E' : 'W';
+          rivers1D[idx].riverWEDirection = dx >= 0 ? 'E' : 'W';
           cy = cy + 1;
           if (cy >= H) break;
         } else {
@@ -176,7 +172,7 @@ function addInlandSeaRivers(rng, plotTypes1D, terrain1D, W, H) {
           const ny = cy - 1;
           if (ny < 0) break;
           rivers1D[ny * W + cx].isNOfRiver = true;
-          rivers1D[ny * W + cx].riverNSDirection = dx >= 0 ? 'E' : 'W';
+          rivers1D[ny * W + cx].riverWEDirection = dx >= 0 ? 'E' : 'W';
           cy = ny;
         }
       }

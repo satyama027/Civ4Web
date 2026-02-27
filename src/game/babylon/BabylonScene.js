@@ -1,13 +1,40 @@
 import { Engine, Scene, ArcRotateCamera, HemisphericLight, DirectionalLight, Vector3, Color3, Color4, MeshBuilder, StandardMaterial } from '@babylonjs/core';
 
 /**
+ * Compute camera radius so the full map fits within the viewport.
+ * @param {HTMLCanvasElement} canvas
+ * @param {{ width: number, height: number }} mapData
+ * @param {number} fovRad  vertical FOV in radians
+ * @param {number} beta    camera tilt from vertical in radians
+ * @returns {number}
+ */
+function computeRadius(canvas, mapData, fovRad, beta) {
+  const canvasW = canvas.clientWidth;
+  const canvasH = canvas.clientHeight;
+  const aspect = (canvasW > 0 && canvasH > 0) ? (canvasW / canvasH) : 16 / 9;
+
+  const vHalf = fovRad / 2;
+  const hHalf = Math.atan(aspect * Math.tan(vHalf));
+  const cz = mapData.height / 2;
+  const cx = mapData.width / 2;
+
+  // Near-Z edge (south side) is the binding vertical constraint for a south-looking camera
+  const rVert  = cz * (Math.cos(beta) / Math.tan(vHalf) + Math.sin(beta));
+  // X edges must fit within horizontal FOV
+  const rHoriz = cx / Math.tan(hHalf);
+
+  return Math.max(rVert, rHoriz) * 1.02; // 2% padding
+}
+
+/**
  * Create and initialize a Babylon.js scene for a flat rectangular map.
  * @param {HTMLCanvasElement} canvas
  * @param {{ width: number, height: number }} mapData
- * @returns {{ engine: Engine, scene: Scene, camera: ArcRotateCamera, dispose: () => void }}
+ * @returns {{ engine: Engine, scene: Scene, camera: ArcRotateCamera, resetCamera: () => void, dispose: () => void }}
  */
 export function createScene(canvas, mapData) {
   const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+  engine.resize();
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.04, 0.055, 0.1, 1);
 
@@ -18,21 +45,7 @@ export function createScene(canvas, mapData) {
   const fovRad = fovDeg * (Math.PI / 180);
   const beta = Math.PI / 9; // ~20° from vertical (top-down-ish)
 
-  // At near-top-down view, the camera sees a rectangle on the ground.
-  // We need to fit the map so width (X) runs left-right on screen.
-  // Camera looks nearly straight down, so visible ground extent ≈
-  //   horizontal: 2 * cameraHeight * tan(hFov/2)
-  //   vertical:   2 * cameraHeight * tan(vFov/2)
-  // We want both map dimensions to fit, so use the tighter constraint.
-  const aspect = canvas.width / canvas.height || 16 / 9;
-  const hFov = 2 * Math.atan(aspect * Math.tan(fovRad / 2));
-
-  // Fit map width to screen width, and map height to screen height
-  const heightForWidth = (mapData.width / 2) / Math.tan(hFov / 2);
-  const heightForHeight = (mapData.height / 2) / Math.tan(fovRad / 2);
-  // Use the larger (tighter) constraint with some padding
-  const cameraHeight = Math.max(heightForWidth, heightForHeight) * 1.05;
-  const radius = cameraHeight / Math.cos(beta);
+  const radius = computeRadius(canvas, mapData, fovRad, beta);
 
   const camera = new ArcRotateCamera(
     'camera',
@@ -50,6 +63,13 @@ export function createScene(canvas, mapData) {
   camera.panningSensibility = 50;
   camera.wheelPrecision = 10;
   camera.attachControl(canvas, true);
+
+  const resetCamera = () => {
+    const r = computeRadius(canvas, mapData, fovRad, beta);
+    camera.radius = r;
+    camera.upperRadiusLimit = r * 3;
+    camera.target = new Vector3(centerX, 0, centerZ);
+  };
 
   const hemi = new HemisphericLight('ambient', new Vector3(0, 1, 0), scene);
   hemi.intensity = 0.4;
@@ -78,6 +98,7 @@ export function createScene(canvas, mapData) {
     engine,
     scene,
     camera,
+    resetCamera,
     dispose: () => {
       window.removeEventListener('resize', onResize);
       engine.stopRenderLoop();
