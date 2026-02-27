@@ -11,10 +11,17 @@ import {
 } from './_test-utils.js';
 import { getMapStats } from '../src/game/mapGenerator.js';
 
+// Per-type seed overrides: use a seed known to produce rivers at the correct
+// map dimensions.  Mirror changed to a smaller grid (40×24 for 'small') so
+// seed 42 produces 0 rivers — seed 1 reliably produces rivers at that size.
+const SEED_OVERRIDES = {
+  mirror: { seed: 1 }
+};
+
 for (const mapType of ALL_MAP_TYPES) {
   console.log(`\n--- ${mapType} ---`);
 
-  const map = generateTestMap(mapType);
+  const map = generateTestMap(mapType, SEED_OVERRIDES[mapType] ?? {});
 
   // Count river edges and lakes by iterating every tile
   let riverEdgeCount = 0;

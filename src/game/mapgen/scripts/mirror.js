@@ -221,7 +221,20 @@ export default {
     }
   ],
 
-  getGridSize() { return null; },
+  getGridSize(worldSize) {
+    // Mirror.py: "Because this is such a land-heavy map, make the map smaller"
+    // Uses the same grid scale as Lakes.py and Inland_Sea.py: (6,4)→(21,13) × 4
+    const table = {
+      duel:     [6, 4],
+      tiny:     [8, 5],
+      small:    [10, 6],
+      standard: [13, 8],
+      large:    [16, 10],
+      huge:     [21, 13]
+    };
+    const grid = table[worldSize] ?? table.standard;
+    return { width: grid[0] * 4, height: grid[1] * 4 };
+  },
 
   beforeInit(settings, rng) {
     const mirrorTypeIndex = settings.customOption != null ? settings.customOption : 0;
