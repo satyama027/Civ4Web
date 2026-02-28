@@ -336,18 +336,20 @@ export default {
   minStartingDistanceModifier() { return -35; },
   customOptions: [],
 
-  // D1 fix: return correct Oasis.py grid sizes instead of null
-  // Original Oasis.py lines 122-134 (grid_sizes dict)
+  // Oasis.py grid sections (same convention as all other scripts) × 4 = tile dimensions.
+  // Oasis.py lines 122-134: these are section counts, not raw tiles.
+  // "Grid sizes reduced — smaller maps two steps, larger maps one and a half steps"
   getGridSize(mapSize) {
-    const sizes = {
-      duel:     { width: 6,  height: 4  },
-      tiny:     { width: 8,  height: 5  },
-      small:    { width: 10, height: 6  },
-      standard: { width: 14, height: 9  },
-      large:    { width: 18, height: 11 },
-      huge:     { width: 23, height: 14 }
+    const sections = {
+      duel:     [6, 4],
+      tiny:     [8, 5],
+      small:    [10, 6],
+      standard: [14, 9],
+      large:    [18, 11],
+      huge:     [23, 14]
     };
-    return sizes[mapSize] ?? sizes.standard;
+    const [w, h] = sections[mapSize] ?? sections.standard;
+    return { width: w * 4, height: h * 4 };
   },
 
   beforeInit(settings) {

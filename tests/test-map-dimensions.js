@@ -12,7 +12,7 @@
  *   ice_age     — Ice_Age.py    (10,4)→(32,13) × 4  (wide, short)
  *   terra       — Terra.py      (13,8)→(38,24) × 4
  *   mirror      — Mirror.py     (6,4)→(21,13) × 4   (same as Lakes)
- *   oasis       — Oasis.py      custom tiny grid
+ *   oasis       — Oasis.py      (6,4)→(23,14) × 4
  *
  * 10 types × 6 sizes × 2 assertions (width + height) = 120 assertions.
  */
@@ -98,14 +98,14 @@ const EXPECTED = {
     large:    { w: 64,  h: 40 },
     huge:     { w: 84,  h: 52 },
   },
-  // Oasis.py uses its own tiny custom grid (not the standard world-size table)
+  // Oasis.py grid sections (6,4)→(23,14) × 4 = actual tile dimensions
   oasis: {
-    duel:     { w: 6,   h: 4  },
-    tiny:     { w: 8,   h: 5  },
-    small:    { w: 10,  h: 6  },
-    standard: { w: 14,  h: 9  },
-    large:    { w: 18,  h: 11 },
-    huge:     { w: 23,  h: 14 },
+    duel:     { w: 24,  h: 16 },
+    tiny:     { w: 32,  h: 20 },
+    small:    { w: 40,  h: 24 },
+    standard: { w: 56,  h: 36 },
+    large:    { w: 72,  h: 44 },
+    huge:     { w: 92,  h: 56 },
   },
 };
 
