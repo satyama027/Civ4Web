@@ -229,21 +229,19 @@ class OasisFeatureGenerator extends FeatureGenerator {
 // Nile-Style Rivers
 // ============================================================================
 
-function addNileRivers(rng, plotTypes1D, terrain1D, W, H, mapSize) {
+function addNileRivers(rng, plotTypes1D, _terrain1D, W, H, mapSize) {
   const rivers1D = new Array(W * H).fill(null).map(() => ({
     isNOfRiver: false, isWOfRiver: false,
     riverNSDirection: null, riverWEDirection: null
   }));
 
-  // Max lateral shift per step (by world size)
+  // Max lateral shift / segment length by world size (Oasis.py lines 943-950)
   const maxShiftTable = {
     duel: 1, tiny: 2, small: 3, standard: 5, large: 7, huge: 9
   };
   const maxShift = maxShiftTable[mapSize] || 5;
 
-  // D2 fix: 4 evenly-spaced quadrant centers (Oasis.py lines 951-956)
-  // Original: W/8, W/8+W/4, W/8+W/2, W/8+3W/4  (not W/4 duplicates)
-  // All 4 rivers start near south edge (y ≈ 2), not rivers 3&4 at H/2
+  // 4 evenly-spaced quadrant centers (Oasis.py lines 951-956)
   const centers = [
     Math.floor(W / 8),
     Math.floor(W / 8 + W / 4),
@@ -253,63 +251,88 @@ function addNileRivers(rng, plotTypes1D, terrain1D, W, H, mapSize) {
 
   const startRangeBottom = 2;
   const startRangeTop = Math.max(startRangeBottom, Math.floor(H / 6));
-  const vertRand  = Math.max(1, startRangeTop - startRangeBottom + 1);
-  const horzRand  = Math.max(1, 2 * maxShift + 1);
+  // D-River-5 fix: horzRand = 2*maxShift (not +1) → startX in [left, right-1]
+  const horzRand = Math.max(1, 2 * maxShift);
+  // D-River-6 fix: vertRand = top-bottom (not +1) → startY in [bottom, top-1]
+  const vertRand = Math.max(1, startRangeTop - startRangeBottom);
 
   for (const center of centers) {
-    const left   = center - maxShift;
+    const left  = center - maxShift;
+    const right = center + maxShift;
     const startX = Math.max(0, Math.min(W - 1, left + rng.nextInt(0, horzRand - 1)));
     const startY = startRangeBottom + rng.nextInt(0, vertRand - 1);
 
     let x = startX;
     let y = startY;
 
-    // Flow north (increasing y) with lateral drift
-    while (y < H - 1) {
-      const idx = y * W + x;
+    // D-River-3 fix: place initial north edge before the loop
+    rivers1D[y * W + x].isWOfRiver = true;
+    rivers1D[y * W + x].riverNSDirection = 'N';
 
-      // Direction: 60% north, 20% west, 20% east
-      const roll = rng.next();
+    while (y < H) {
+      // D-River-4 fix: check both north-of-x and north-of-(x+1) for water
+      if (y + 1 >= H) break;
+      if (plotTypes1D[(y + 1) * W + x] === PLOT.OCEAN ||
+          (x + 1 < W && plotTypes1D[(y + 1) * W + (x + 1)] === PLOT.OCEAN)) break;
 
-      if (roll < 0.60) {
-        // North: place river on north edge
-        rivers1D[idx].isNOfRiver = true;
-        rivers1D[idx].riverWEDirection = rng.next() < 0.5 ? 'E' : 'W';
+      // D-River-2 fix: segment-based movement (1..maxShift steps per roll)
+      const segmentLength = 1 + rng.nextInt(0, maxShift - 1);
+      // 60% north (roll 0,3,4), 20% west (roll 1), 20% east (roll 2)
+      const roll = rng.nextInt(0, 4);
+
+      if (roll === 1) {
+        // WEST: move north first, then drift laterally, then resume north
+        if (y >= H - 1) break;
         y++;
-      } else if (roll < 0.80) {
-        // West
-        if (x - 1 >= 0) {
-          rivers1D[idx].isWOfRiver = true;
-          rivers1D[idx].riverNSDirection = 'N';
+        for (let seg = 0; seg < segmentLength; seg++) {
+          if (x <= left) break;
+          // D-River-1 fix: isNOfRiver for lateral (horizontal) movement
+          rivers1D[y * W + x].isNOfRiver = true;
+          rivers1D[y * W + x].riverWEDirection = 'W';
+          // D-River-4 fix: lateral water check
+          if (x > 0 && plotTypes1D[y * W + (x - 1)] === PLOT.OCEAN) break;
           x--;
-        } else {
-          rivers1D[idx].isNOfRiver = true;
-          rivers1D[idx].riverWEDirection = 'W';
-          y++;
         }
-      } else {
-        // East
-        if (x + 1 < W) {
-          const eidx = y * W + (x + 1);
-          rivers1D[eidx].isWOfRiver = true;
-          rivers1D[eidx].riverNSDirection = 'N';
+        // Resume north from final position
+        rivers1D[y * W + x].isWOfRiver = true;
+        rivers1D[y * W + x].riverNSDirection = 'N';
+
+      } else if (roll === 2) {
+        // EAST: move north first, then drift laterally, then resume north
+        if (y >= H - 1) break;
+        if (x >= right) continue;  // already at east boundary — skip, re-roll
+        y++;
+        for (let seg = 0; seg < segmentLength; seg++) {
+          if (x >= right) break;
           x++;
-        } else {
-          rivers1D[idx].isNOfRiver = true;
-          rivers1D[idx].riverWEDirection = 'E';
+          // D-River-1 fix: isNOfRiver for lateral (horizontal) movement
+          rivers1D[y * W + x].isNOfRiver = true;
+          rivers1D[y * W + x].riverWEDirection = 'E';
+          // D-River-4 fix: lateral water check
+          if (x + 1 < W && plotTypes1D[y * W + (x + 1)] === PLOT.OCEAN) break;
+        }
+        // Check east water before resuming north
+        if (x + 1 < W && plotTypes1D[y * W + (x + 1)] === PLOT.OCEAN) break;
+        // Resume north from final position
+        rivers1D[y * W + x].isWOfRiver = true;
+        rivers1D[y * W + x].riverNSDirection = 'N';
+
+      } else {
+        // NORTH (roll 0, 3, 4): multi-step northward run
+        for (let seg = 0; seg < segmentLength; seg++) {
+          if (y >= H - 1) break;
+          if (plotTypes1D[(y + 1) * W + x] === PLOT.OCEAN ||
+              (x + 1 < W && plotTypes1D[(y + 1) * W + (x + 1)] === PLOT.OCEAN)) break;
           y++;
+          // D-River-1 fix: isWOfRiver for north (vertical) movement
+          rivers1D[y * W + x].isWOfRiver = true;
+          rivers1D[y * W + x].riverNSDirection = 'N';
         }
       }
 
-      // Clamp lateral drift
-      if (Math.abs(x - startX) > maxShift) {
-        x = startX + (x > startX ? maxShift : -maxShift);
-      }
-
-      // Stop at water
-      if (y < H && plotTypes1D[y * W + x] === PLOT.OCEAN) {
-        break;
-      }
+      // D-River-7 fix: clamp to center±maxShift (left..right), not startX-based
+      if (x < left)  x = left;
+      if (x > right) x = right;
     }
   }
 

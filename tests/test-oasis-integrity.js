@@ -468,6 +468,90 @@ console.log('\n=== Test 15: skipNormalization() Returns true (static) ===');
 }
 
 // =============================================================================
+// Test 16: River Connectivity — < 30% Isolated Singleton Segments (Soft ≥17/20)
+//
+// Rendering contract (FeatureRenderer.js:116-117):
+//   isWOfRiver at (x,y) → vertical   segment: (x+1,y)–(x+1,y+1)
+//   isNOfRiver at (x,y) → horizontal segment: (x,y+1)–(x+1,y+1)
+//
+// Correct north movement (y++): uses isWOfRiver → consecutive edges share corner
+//   isWOfRiver@(x,y) and isWOfRiver@(x,y+1) both have corner (x+1,y+1) → connected.
+//
+// BROKEN code uses isNOfRiver for north → consecutive edges have no shared corners:
+//   isNOfRiver@(x,y)  → {(x,y+1),(x+1,y+1)}
+//   isNOfRiver@(x,y+1)→ {(x,y+2),(x+1,y+2)}  ← zero shared corners → isolated singletons!
+//
+// A "singleton" segment = edge whose both endpoints connect to no other edge (degree-1).
+// Before D-River-1 fix: ~60%+ of edges are singletons. After fix: essentially 0%.
+// =============================================================================
+
+console.log('\n=== Test 16: River Connectivity (< 30% isolated singletons, 20 seeds) ===');
+{
+  /**
+   * Returns {isolated, total} where:
+   *   total    = number of river segments (isNOfRiver or isWOfRiver edges)
+   *   isolated = number of segments whose BOTH endpoints are shared by no other segment
+   */
+  function countIsolatedSegments(map) {
+    const W = map.width;
+    const H = map.height;
+
+    // corner key → number of segments that touch it
+    const cornerDegree = new Map();
+    function addCorner(x, z) {
+      const k = `${x},${z}`;
+      cornerDegree.set(k, (cornerDegree.get(k) || 0) + 1);
+    }
+
+    const edges = [];  // each entry: [p1_key, p2_key]
+
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const tile = map.getTile(x, y);
+        if (tile.isNOfRiver) {
+          // horizontal segment: (x, y+1) – (x+1, y+1)
+          const p1 = `${x},${y + 1}`, p2 = `${x + 1},${y + 1}`;
+          edges.push([p1, p2]);
+          addCorner(x,     y + 1);
+          addCorner(x + 1, y + 1);
+        }
+        if (tile.isWOfRiver) {
+          // vertical segment: (x+1, y) – (x+1, y+1)
+          const p1 = `${x + 1},${y}`, p2 = `${x + 1},${y + 1}`;
+          edges.push([p1, p2]);
+          addCorner(x + 1, y);
+          addCorner(x + 1, y + 1);
+        }
+      }
+    }
+
+    // isolated singleton = both corners have degree exactly 1
+    const isolated = edges.filter(
+      ([p1, p2]) => cornerDegree.get(p1) === 1 && cornerDegree.get(p2) === 1
+    ).length;
+
+    return { isolated, total: edges.length };
+  }
+
+  let passing = 0;
+  for (let seed = 1; seed <= REUSE_SEEDS; seed++) {
+    const map = getCachedMap(seed);
+    const { isolated, total } = countIsolatedSegments(map);
+    if (total === 0) { passing++; continue; }  // no rivers → trivially ok
+    const isolatedFrac = isolated / total;
+    if (isolatedFrac < 0.30) {
+      passing++;
+    } else {
+      console.log(`    seed ${seed}: ${isolated}/${total} isolated segments (${(isolatedFrac * 100).toFixed(1)}%, should be < 30%)`);
+    }
+  }
+  const rate = passing / REUSE_SEEDS;
+  console.log(`  River connectivity (< 30% isolated): ${passing}/${REUSE_SEEDS} (${(rate * 100).toFixed(0)}%)`);
+  assert(rate >= 17 / 20,
+    `river connectivity: < 30% isolated segments in >= 17/20 seeds (D-River-1: isWOfRiver for north, got ${passing}/20)`);
+}
+
+// =============================================================================
 // Results
 // =============================================================================
 
