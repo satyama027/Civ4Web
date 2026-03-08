@@ -44,4 +44,47 @@ assert(map.getTile(0, H) === null, 'getTile(x, H) returns null');
 assert(map.getTile(0, -100) === null, 'getTile(x, -100) returns null');
 assert(map.getTile(0, H + 100) === null, 'getTile(x, H+100) returns null');
 
+// ============================================================================
+// Non-wrapping maps: Inland Sea, Oasis, Mirror (wrapX: false, wrapY: false)
+// ============================================================================
+
+console.log('\n--- Non-wrapping map tests ---');
+
+for (const mapType of ['inland_sea', 'oasis', 'mirror']) {
+  console.log(`\n  Testing ${mapType}...`);
+  const nwMap = generateTestMap(mapType);
+  const nwW = nwMap.width;
+  const nwH = nwMap.height;
+  const nwTestY = Math.floor(nwH / 2);
+  const nwTestX = Math.floor(nwW / 2);
+
+  // Verify settings
+  assert(nwMap.settings.wrapX === false, `${mapType}: settings.wrapX === false`);
+  assert(nwMap.settings.wrapY === false, `${mapType}: settings.wrapY === false`);
+
+  // getTile: out-of-bounds X should return null (NOT wrap)
+  assert(nwMap.getTile(-1, nwTestY) === null, `${mapType}: getTile(-1, y) returns null`);
+  assert(nwMap.getTile(nwW, nwTestY) === null, `${mapType}: getTile(W, y) returns null`);
+  assert(nwMap.getTile(-5, nwTestY) === null, `${mapType}: getTile(-5, y) returns null`);
+  assert(nwMap.getTile(nwW + 5, nwTestY) === null, `${mapType}: getTile(W+5, y) returns null`);
+
+  // getTile: out-of-bounds Y should return null
+  assert(nwMap.getTile(nwTestX, -1) === null, `${mapType}: getTile(x, -1) returns null`);
+  assert(nwMap.getTile(nwTestX, nwH) === null, `${mapType}: getTile(x, H) returns null`);
+
+  // getElevation: out-of-bounds should return null
+  assert(nwMap.getElevation(-1, nwTestY) === null, `${mapType}: getElevation(-1, y) returns null`);
+  assert(nwMap.getElevation(nwW, nwTestY) === null, `${mapType}: getElevation(W, y) returns null`);
+  assert(nwMap.getElevation(nwTestX, -1) === null, `${mapType}: getElevation(x, -1) returns null`);
+  assert(nwMap.getElevation(nwTestX, nwH) === null, `${mapType}: getElevation(x, H) returns null`);
+
+  // In-bounds should still work
+  const inBoundsTile = nwMap.getTile(nwTestX, nwTestY);
+  assert(inBoundsTile !== null, `${mapType}: getTile(midX, midY) returns a tile`);
+  assert(inBoundsTile.terrain != null, `${mapType}: in-bounds tile has terrain`);
+
+  const inBoundsElev = nwMap.getElevation(nwTestX, nwTestY);
+  assert(inBoundsElev !== null, `${mapType}: getElevation(midX, midY) returns elevation`);
+}
+
 reportResults('test-wrapping');

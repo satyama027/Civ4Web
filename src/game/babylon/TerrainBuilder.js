@@ -3,21 +3,36 @@ import { Mesh, VertexData, Vector3, Color3, MeshBuilder } from '@babylonjs/core'
 const TILE_SIZE = 1;
 
 /**
+ * Resolve a tile coordinate, wrapping if the map wraps in that axis.
+ * Returns -1 for out-of-bounds on non-wrapping axes.
+ */
+function wrapCoord(coord, size, wrap) {
+  if (coord >= 0 && coord < size) return coord;
+  if (wrap) return ((coord % size) + size) % size;
+  return -1;
+}
+
+/**
  * Compute the Y elevation for a vertex at grid corner (i, j).
  * Averages the elevations of the up-to-4 adjacent tiles.
  */
 function computeVertexY(i, j, mapData) {
   const W = mapData.width;
   const H = mapData.height;
+  const wrapX = mapData.settings?.wrapX ?? true;
+  const wrapY = mapData.settings?.wrapY ?? false;
   let sum = 0;
   let count = 0;
 
   // Adjacent tiles sharing this corner: (i-1,j-1), (i,j-1), (i-1,j), (i,j)
   for (const [tx, ty] of [[i - 1, j - 1], [i, j - 1], [i - 1, j], [i, j]]) {
-    if (tx < 0 || tx >= W || ty < 0 || ty >= H) continue;
-    const tile = mapData.getTile(tx, ty);
+    const wrappedTx = wrapCoord(tx, W, wrapX);
+    const wrappedTy = wrapCoord(ty, H, wrapY);
+    if (wrappedTx < 0 || wrappedTy < 0) continue;
+
+    const tile = mapData.getTile(wrappedTx, wrappedTy);
     if (!tile) continue;
-    const h = mapData.heightmap?.[ty]?.[tx] ?? 0;
+    const h = mapData.heightmap?.[wrappedTy]?.[wrappedTx] ?? 0;
 
     let y;
     if (tile.isPeak) {
@@ -45,11 +60,16 @@ function computeVertexY(i, j, mapData) {
 function computeVertexColor(i, j, mapData, terrainRGB) {
   const W = mapData.width;
   const H = mapData.height;
+  const wrapX = mapData.settings?.wrapX ?? true;
+  const wrapY = mapData.settings?.wrapY ?? false;
   let r = 0, g = 0, b = 0, count = 0;
 
   for (const [tx, ty] of [[i - 1, j - 1], [i, j - 1], [i - 1, j], [i, j]]) {
-    if (tx < 0 || tx >= W || ty < 0 || ty >= H) continue;
-    const tile = mapData.getTile(tx, ty);
+    const wrappedTx = wrapCoord(tx, W, wrapX);
+    const wrappedTy = wrapCoord(ty, H, wrapY);
+    if (wrappedTx < 0 || wrappedTy < 0) continue;
+
+    const tile = mapData.getTile(wrappedTx, wrappedTy);
     if (!tile) continue;
     const rgb = terrainRGB[tile.terrain] || terrainRGB['grassland'];
     r += rgb[0];

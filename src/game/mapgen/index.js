@@ -243,10 +243,27 @@ function to2D(arr, W, H) {
 }
 
 // ============================================================================
+// COORDINATE HELPER — mirrors Civ4's CvMap::coordRange()
+// ============================================================================
+
+/**
+ * Wrap or clamp a coordinate based on the wrap flag.
+ * When wrap is true, wraps coord into [0, range). When false, returns as-is.
+ * Callers must bounds-check the returned value when wrap is false.
+ */
+function coordRange(coord, range, wrap) {
+  if (wrap && range !== 0) {
+    if (coord < 0) return range + (coord % range === 0 ? 0 : coord % range);
+    if (coord >= range) return coord % range;
+  }
+  return coord;
+}
+
+// ============================================================================
 // RIVER HELPER (for getTile output)
 // ============================================================================
 
-function tileHasRiver(rivers, x, y, W, H) {
+function tileHasRiver(rivers, x, y, W, H, wrapX) {
   const r = rivers[y][x];
   // Own edges: bottom (isNOfRiver) and right (isWOfRiver)
   if (r.isNOfRiver || r.isWOfRiver) return true;
@@ -255,8 +272,8 @@ function tileHasRiver(rivers, x, y, W, H) {
   if (y - 1 >= 0 && rivers[y - 1][x].isNOfRiver) return true;
 
   // Left edge = west neighbor's right edge
-  const wx = ((x - 1) % W + W) % W;
-  if (rivers[y][wx].isWOfRiver) return true;
+  const wx = coordRange(x - 1, W, wrapX);
+  if (wx >= 0 && wx < W && rivers[y][wx].isWOfRiver) return true;
 
   return false;
 }
@@ -268,6 +285,9 @@ function tileHasRiver(rivers, x, y, W, H) {
 function buildFinalMapData(W, H, plots2D, terrain2D, features2D, resources2D,
                             rivers2D, lakes2D, goodies2D, startingLocations,
                             heightmap, outputSettings, seed, startHumansOnSameTile) {
+  const wrapX = outputSettings.wrapX ?? true;
+  const wrapY = outputSettings.wrapY ?? false;
+
   return {
     width: W,
     height: H,
@@ -285,29 +305,30 @@ function buildFinalMapData(W, H, plots2D, terrain2D, features2D, resources2D,
     startingLocations,
 
     getTile(x, y) {
-      const wx = ((x % W) + W) % W;
-      if (y < 0 || y >= H) return null;
+      const wx = coordRange(x, W, wrapX);
+      const wy = coordRange(y, H, wrapY);
+      if (wx < 0 || wx >= W || wy < 0 || wy >= H) return null;
 
-      const plot = plots2D[y][wx];
-      const river = rivers2D[y][wx];
+      const plot = plots2D[wy][wx];
+      const river = rivers2D[wy][wx];
 
       return {
-        x: wx, y,
+        x: wx, y: wy,
         plot,
-        terrain: terrain2D[y][wx],
-        feature: features2D[y][wx],
-        resource: resources2D[y][wx],
+        terrain: terrain2D[wy][wx],
+        feature: features2D[wy][wx],
+        resource: resources2D[wy][wx],
         river,
 
         isWater: plot === PLOT.OCEAN,
         isLand: plot >= PLOT.LAND,
-        isCoast: terrain2D[y][wx] === TERRAIN.COAST,
+        isCoast: terrain2D[wy][wx] === TERRAIN.COAST,
         isHills: plot === PLOT.HILLS,
         isPeak: plot === PLOT.PEAK,
-        hasRiver: tileHasRiver(rivers2D, wx, y, W, H),
+        hasRiver: tileHasRiver(rivers2D, wx, wy, W, H, wrapX),
 
-        isLake: lakes2D ? lakes2D[y][wx] : false,
-        hasGoodyHut: goodies2D ? goodies2D[y][wx] : false,
+        isLake: lakes2D ? lakes2D[wy][wx] : false,
+        hasGoodyHut: goodies2D ? goodies2D[wy][wx] : false,
 
         // River edges
         // isNOfRiver = bottom horizontal edge; flow stored in riverWEDirection (E or W)
@@ -320,10 +341,11 @@ function buildFinalMapData(W, H, plots2D, terrain2D, features2D, resources2D,
     },
 
     getElevation(x, y) {
-      const wx = ((x % W) + W) % W;
-      if (y < 0 || y >= H) return null;
+      const wx = coordRange(x, W, wrapX);
+      const wy = coordRange(y, H, wrapY);
+      if (wx < 0 || wx >= W || wy < 0 || wy >= H) return null;
 
-      const plot = plots2D[y][wx];
+      const plot = plots2D[wy][wx];
       if (plot === PLOT.PEAK) return ELEVATION.PEAKS;
       if (plot === PLOT.HILLS) return ELEVATION.HILLS;
       return ELEVATION.FLAT;

@@ -63,6 +63,7 @@ uniform vec2 mapSize;
 uniform float detailTiling;
 uniform vec3 lightDir;
 uniform float useTextures;
+uniform float wrapX;
 
 uniform sampler2D detailOcean;
 uniform sampler2D detailCoast;
@@ -107,7 +108,13 @@ vec3 sampleTerrain(int idx, vec2 uv) {
 
 int getTerrainAt(vec2 tilePos) {
     vec2 uv = (tilePos + 0.5) / mapSize;
-    uv = clamp(uv, vec2(0.0), vec2(1.0));
+    // Wrap X when the map wraps horizontally, otherwise clamp
+    if (wrapX > 0.5) {
+        uv.x = fract(uv.x);
+    } else {
+        uv.x = clamp(uv.x, 0.0, 1.0);
+    }
+    uv.y = clamp(uv.y, 0.0, 1.0);
     float val = texture2D(terrainIdTex, uv).r;
     return int(val * 255.0 + 0.5);
 }
@@ -216,7 +223,7 @@ export function createTerrainMaterial(scene, mapData) {
     fragment: 'terrain',
   }, {
     attributes: ['position', 'normal', 'color'],
-    uniforms: ['worldViewProjection', 'world', 'mapSize', 'detailTiling', 'lightDir', 'useTextures'],
+    uniforms: ['worldViewProjection', 'world', 'mapSize', 'detailTiling', 'lightDir', 'useTextures', 'wrapX'],
     samplers: ['terrainIdTex', ...DETAIL_TEXTURES.map(t => t.sampler)],
     needAlphaBlending: false,
   });
@@ -226,6 +233,7 @@ export function createTerrainMaterial(scene, mapData) {
   shaderMat.setFloat('detailTiling', 0.5);
   shaderMat.setVector3('lightDir', new Vector3(-1, -2, 1).normalize());
   shaderMat.setFloat('useTextures', 0.0);
+  shaderMat.setFloat('wrapX', mapData.settings?.wrapX !== false ? 1.0 : 0.0);
 
   // Terrain ID texture
   const idTex = createTerrainIdTexture(scene, mapData);
