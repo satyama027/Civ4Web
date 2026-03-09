@@ -13,7 +13,7 @@
  *   afterGeneration → assignStartingPlots → normalize → startHumansOnSameTile
  */
 
-import { SeededRandom } from './utils.js';
+import { SeededRandom, CIV4_SEED_MODULO } from './utils.js';
 import { CyFractal } from './CyFractal.js';
 import { FractalWorld, PLOT } from './FractalWorld.js';
 import { TerrainGenerator, TERRAIN } from './TerrainGenerator.js';
@@ -451,12 +451,13 @@ export function generateMap(settings) {
     console.warn(`numPlayers clamped from ${numPlayers} to ${clampedPlayers}`);
   }
 
-  const rng = new SeededRandom(seed);
+  const effectiveSeed = seed % CIV4_SEED_MODULO;
+  const rng = new SeededRandom(effectiveSeed);
 
   // 1. Select map script
   const script = getMapScript(mapType);
 
-  console.log(`Generating ${mapType} map (${script.name}) with seed ${seed}`);
+  console.log(`Generating ${mapType} map (${script.name}) with seed ${effectiveSeed}`);
 
   // Resolve custom options
   const resolvedCustomOptions = resolveCustomOptions(script, rawCustomOptions, rng);
@@ -468,7 +469,7 @@ export function generateMap(settings) {
     climate,
     seaLevel,
     numPlayers: clampedPlayers,
-    seed,
+    seed: effectiveSeed,
     customOption,
     customOptions: resolvedCustomOptions
   };
@@ -600,7 +601,7 @@ export function generateMap(settings) {
     rivers2D, lakes2D, goodies2D, starts,
     heightmap,
     { mapType, mapSize, climate, seaLevel, numPlayers: clampedPlayers, wrapX, wrapY },
-    seed,
+    effectiveSeed,
     humansOnSameTile
   );
 }

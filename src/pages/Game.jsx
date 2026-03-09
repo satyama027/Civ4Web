@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { generateMap, getMapStats, TERRAIN } from '../game/mapGenerator';
+import { CIV4_SEED_MODULO } from '../game/mapgen/utils';
 import { createScene } from '../game/babylon/BabylonScene';
 import { TERRAIN_RGB, createTerrainMaterial } from '../game/babylon/TerrainMaterials';
 import { buildTerrainMesh, buildGridOverlay } from '../game/babylon/TerrainBuilder';
@@ -56,7 +57,7 @@ const Game = () => {
       try {
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        const seed = Date.now();
+        const seed = Date.now() % CIV4_SEED_MODULO;
         console.log('Generating map with settings:', gameSettings);
 
         const map = generateMap({
@@ -151,20 +152,13 @@ const Game = () => {
   // Get hovered tile info
   const hoveredTileInfo = hoveredTile && mapData ? mapData.getTile(hoveredTile.x, hoveredTile.y) : null;
 
-  // Regenerate map
+  // Regenerate map — just reset state; useEffect cleanup handles Babylon disposal
   const handleRegenerate = () => {
-    if (babylonRef.current) {
-      if (babylonRef.current.edgeScroller) babylonRef.current.edgeScroller.dispose();
-      if (babylonRef.current.picker) babylonRef.current.picker.dispose();
-      if (babylonRef.current.features) babylonRef.current.features.dispose();
-      babylonRef.current.dispose();
-      babylonRef.current = null;
-    }
     setMapData(null);
     setHoveredTile(null);
     setIsGenerating(true);
     setTimeout(() => {
-      const seed = Date.now();
+      const seed = Date.now() % CIV4_SEED_MODULO;
       try {
         const map = generateMap({
           mapType: gameSettings.mapType,
@@ -259,6 +253,10 @@ const Game = () => {
             <section className="sidebar-section">
               <h3>Map Statistics</h3>
               <div className="stats-grid">
+                <div className="stat-item">
+                  <span className="stat-label">Seed</span>
+                  <span className="stat-value">{mapData.seed}</span>
+                </div>
                 <div className="stat-item">
                   <span className="stat-label">Size</span>
                   <span className="stat-value">{mapStats.dimensions}</span>
