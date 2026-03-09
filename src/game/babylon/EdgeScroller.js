@@ -3,10 +3,16 @@
  *
  * Runs per-frame via scene.registerBeforeRender for smooth, frame-rate-independent
  * panning. Scroll direction is screen-relative (accounts for camera rotation).
+ *
+ * Speed scales linearly between MIN and MAX based on zoom fraction, matching
+ * Civ4's CAMERA_MIN_SCROLL_SPEED / CAMERA_MAX_SCROLL_SPEED (6× ratio).
  */
 
-const EDGE_THRESHOLD = 25;  // px from edge to start scrolling
-const BASE_SPEED = 15;      // world units/sec at initial zoom level
+const EDGE_THRESHOLD = 25;   // px from edge to start scrolling
+const MIN_SCROLL_SPEED = 5;  // world units/sec at closest zoom
+const MAX_SCROLL_SPEED = 30; // world units/sec at farthest zoom (6× ratio like Civ4)
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 /**
  * Enable edge scrolling on the game map.
@@ -18,7 +24,6 @@ const BASE_SPEED = 15;      // world units/sec at initial zoom level
  * @returns {{ dispose: () => void }}
  */
 export function setupEdgeScrolling(scene, canvas, camera, mapData) {
-  const initialRadius = camera.radius;
   let isPointerOverCanvas = false;
 
   const onEnter = () => { isPointerOverCanvas = true; };
@@ -59,14 +64,22 @@ export function setupEdgeScrolling(scene, canvas, camera, mapData) {
     const worldDx = dx * cosA - dz * sinA;
     const worldDz = dx * sinA + dz * cosA;
 
-    // Scale by zoom and delta time for consistent feel
+    // Scale speed by zoom fraction (Civ4-style min/max interpolation)
     const dt = scene.getEngine().getDeltaTime() / 1000;
-    const zoomFactor = camera.radius / initialRadius;
-    const speed = BASE_SPEED * zoomFactor * dt;
+    const zoomFraction = clamp(
+      (camera.radius - camera.lowerRadiusLimit) / (camera.upperRadiusLimit - camera.lowerRadiusLimit),
+      0, 1
+    );
+    const speed = (MIN_SCROLL_SPEED + zoomFraction * (MAX_SCROLL_SPEED - MIN_SCROLL_SPEED)) * dt;
 
     // Apply and clamp to map boundaries
     const t = camera.target;
-    t.x = Math.max(0, Math.min(mapData.width, t.x + worldDx * speed));
+    const wrapX = mapData.settings?.wrapX ?? true;
+    t.x += worldDx * speed;
+    if (!wrapX) {
+      t.x = Math.max(0, Math.min(mapData.width, t.x));
+    }
+    // Z (north-south) is always clamped — no Y wrapping
     t.z = Math.max(0, Math.min(mapData.height, t.z + worldDz * speed));
   };
 
