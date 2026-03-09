@@ -257,10 +257,10 @@ export function createTerrainMaterial(scene, mapData) {
         loadedCount++;
         console.log(`[Terrain] Loaded ${file} (${loadedCount}/${totalTextures})`);
         if (loadedCount === totalTextures) {
-          shaderMat.setFloat('useTextures', 1.0);
-          console.log('[Terrain] All textures loaded — switching to shader material');
-          // Swap the mesh material to the shader
-          if (shaderMat._terrainMesh) {
+          // Guard against scene disposed during async texture loading (e.g. rapid regenerate)
+          if (shaderMat._terrainMesh && !shaderMat._terrainMesh.isDisposed()) {
+            shaderMat.setFloat('useTextures', 1.0);
+            console.log('[Terrain] All textures loaded — switching to shader material');
             shaderMat._terrainMesh.material = shaderMat;
           }
         }

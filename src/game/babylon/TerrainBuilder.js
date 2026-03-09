@@ -15,6 +15,7 @@ function wrapCoord(coord, size, wrap) {
 /**
  * Compute the Y elevation for a vertex at grid corner (i, j).
  * Averages the elevations of the up-to-4 adjacent tiles.
+ * i/j are raw tile-space coordinates (may be negative or >= W for padded mesh).
  */
 function computeVertexY(i, j, mapData) {
   const W = mapData.width;
@@ -56,6 +57,7 @@ function computeVertexY(i, j, mapData) {
 /**
  * Compute the vertex color at grid corner (i, j) by averaging
  * terrain colors of adjacent tiles.
+ * i/j are raw tile-space coordinates (may be negative or >= W for padded mesh).
  */
 function computeVertexColor(i, j, mapData, terrainRGB) {
   const W = mapData.width;
@@ -86,34 +88,44 @@ function computeVertexColor(i, j, mapData, terrainRGB) {
 
 /**
  * Build a single continuous terrain mesh from heightmap data with vertex colors.
+ * When wrapX is true, the mesh is extended with padding columns on each side
+ * that duplicate opposite-edge tiles, enabling seamless visual wrapping.
+ *
  * @param {import('@babylonjs/core').Scene} scene
  * @param {Object} mapData
  * @param {Record<string, number[]>} terrainRGB - terrain name → [r, g, b]
  * @param {import('@babylonjs/core').Material} material
- * @returns {{ mesh: Mesh, positions: Float32Array }}
+ * @returns {{ mesh: Mesh, positions: Float32Array, padding: number, extVertW: number }}
  */
 export function buildTerrainMesh(scene, mapData, terrainRGB, material) {
   const W = mapData.width;
   const H = mapData.height;
-  const vertW = W + 1;
+  const wrapX = mapData.settings?.wrapX ?? true;
+
+  // Padding: half the map width on each side (enough for any camera angle/zoom)
+  const padding = wrapX ? Math.ceil(W / 2) : 0;
+  const extW = W + 2 * padding;      // extended tile columns
+  const extVertW = extW + 1;          // extended vertex columns
   const vertH = H + 1;
-  const vertCount = vertW * vertH;
+  const vertCount = extVertW * vertH;
 
   const positions = new Float32Array(vertCount * 3);
   const colors = new Float32Array(vertCount * 4);
   const indices = [];
 
   // Build vertex positions and colors
+  // Vertex i=0 corresponds to tile-space x = -padding
   for (let j = 0; j < vertH; j++) {
-    for (let i = 0; i < vertW; i++) {
-      const idx = j * vertW + i;
+    for (let i = 0; i < extVertW; i++) {
+      const tileX = i - padding; // raw tile-space X (may be negative or >= W)
+      const idx = j * extVertW + i;
       const p = idx * 3;
-      positions[p] = i * TILE_SIZE;
-      positions[p + 1] = computeVertexY(i, j, mapData);
+      positions[p] = tileX * TILE_SIZE;
+      positions[p + 1] = computeVertexY(tileX, j, mapData);
       positions[p + 2] = j * TILE_SIZE;
 
       const c = idx * 4;
-      const rgba = computeVertexColor(i, j, mapData, terrainRGB);
+      const rgba = computeVertexColor(tileX, j, mapData, terrainRGB);
       colors[c] = rgba[0];
       colors[c + 1] = rgba[1];
       colors[c + 2] = rgba[2];
@@ -123,10 +135,10 @@ export function buildTerrainMesh(scene, mapData, terrainRGB, material) {
 
   // Build index buffer — two triangles per tile
   for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const tl = y * vertW + x;
+    for (let x = 0; x < extW; x++) {
+      const tl = y * extVertW + x;
       const tr = tl + 1;
-      const bl = (y + 1) * vertW + x;
+      const bl = (y + 1) * extVertW + x;
       const br = bl + 1;
 
       indices.push(tl, tr, bl);
@@ -151,7 +163,7 @@ export function buildTerrainMesh(scene, mapData, terrainRGB, material) {
   mesh.isPickable = true;
   mesh.freezeWorldMatrix();
 
-  return { mesh, positions };
+  return { mesh, positions, padding, extVertW };
 }
 
 /**
@@ -159,31 +171,39 @@ export function buildTerrainMesh(scene, mapData, terrainRGB, material) {
  * @param {import('@babylonjs/core').Scene} scene
  * @param {Object} mapData
  * @param {Float32Array} positions - vertex positions from buildTerrainMesh
+ * @param {number} padding - number of padding columns on each side
+ * @param {number} extVertW - extended vertex width (W + 2*padding + 1)
  * @returns {Mesh}
  */
-export function buildGridOverlay(scene, mapData, positions) {
+export function buildGridOverlay(scene, mapData, positions, padding = 0, extVertW = null) {
   const W = mapData.width;
   const H = mapData.height;
-  const vertW = W + 1;
+  const actualExtVertW = extVertW ?? (W + 1);
+  const startX = -padding;
+  const endX = W + padding;
   const lines = [];
   const offset = 0.03; // slight Y offset above terrain
 
-  const getY = (i, j) => positions[(j * vertW + i) * 3 + 1];
+  const getY = (tileX, j) => {
+    const i = tileX + padding; // convert tile-space X to vertex array index
+    if (i < 0 || i >= actualExtVertW) return 0;
+    return positions[(j * actualExtVertW + i) * 3 + 1];
+  };
 
   // Lines along X (one per row of vertices)
   for (let j = 0; j <= H; j++) {
     const path = [];
-    for (let i = 0; i <= W; i++) {
-      path.push(new Vector3(i * TILE_SIZE, getY(i, j) + offset, j * TILE_SIZE));
+    for (let tileX = startX; tileX <= endX; tileX++) {
+      path.push(new Vector3(tileX * TILE_SIZE, getY(tileX, j) + offset, j * TILE_SIZE));
     }
     lines.push(path);
   }
 
   // Lines along Z (one per column of vertices)
-  for (let i = 0; i <= W; i++) {
+  for (let tileX = startX; tileX <= endX; tileX++) {
     const path = [];
     for (let j = 0; j <= H; j++) {
-      path.push(new Vector3(i * TILE_SIZE, getY(i, j) + offset, j * TILE_SIZE));
+      path.push(new Vector3(tileX * TILE_SIZE, getY(tileX, j) + offset, j * TILE_SIZE));
     }
     lines.push(path);
   }

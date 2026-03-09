@@ -93,19 +93,21 @@ const Game = () => {
 
     const babylon = createScene(canvas, mapData);
     const material = createTerrainMaterial(babylon.scene, mapData);
-    const { mesh, positions } = buildTerrainMesh(babylon.scene, mapData, TERRAIN_RGB, material);
+    const { mesh, positions, padding, extVertW } = buildTerrainMesh(babylon.scene, mapData, TERRAIN_RGB, material);
     // Store mesh reference so shader material can swap in when textures load
     if (material._shaderMat) {
       material._shaderMat._terrainMesh = mesh;
     }
-    buildGridOverlay(babylon.scene, mapData, positions);
-    const features = buildFeatures(babylon.scene, mapData, positions);
+    buildGridOverlay(babylon.scene, mapData, positions, padding, extVertW);
+    const features = buildFeatures(babylon.scene, mapData, positions, padding, extVertW);
 
     const picker = setupTilePicking(
       babylon.scene,
       canvas,
       mapData,
       positions,
+      padding,
+      extVertW,
       (tile) => setHoveredTile(tile),
       () => {} // onClick: future use
     );
@@ -120,7 +122,7 @@ const Game = () => {
 
     const ro = new ResizeObserver(() => {
       babylon.engine.resize();
-      babylon.resetCamera();
+      babylon.resizeCamera();
     });
     ro.observe(containerRef.current);
 
@@ -155,6 +157,7 @@ const Game = () => {
   // Regenerate map — just reset state; useEffect cleanup handles Babylon disposal
   const handleRegenerate = () => {
     setMapData(null);
+    setMapStats(null);
     setHoveredTile(null);
     setIsGenerating(true);
     setTimeout(() => {
@@ -224,7 +227,7 @@ const Game = () => {
           <section className="sidebar-section">
             <h3>View Controls</h3>
             <p className="control-hint">
-              Left-click + drag: Rotate | Right-click + drag: Pan | Scroll: Zoom
+              Left-click + drag: Rotate/Tilt | Right-click + drag: Pan | Scroll: Zoom
             </p>
             <div className="control-group">
               <label>
